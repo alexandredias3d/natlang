@@ -42,11 +42,31 @@ def prepare():
     download_data()
     extract_data()
 
-def retrieve(lang, appid):
+def retrieve(lang, appid, flatten=True):
     '''
         Retrieve reviews from a game in a given a language.
+        The result dictionary is flattened by default
     '''
     path = f'{folder}/{lang}/{appid}/review'
     for file in os.listdir(path):
         with open(f'{path}/{file}') as review:
-            yield json.load(review)
+            if flatten:
+                yield flatten_dictionary(json.load(review))
+            else:
+                yield json.load(review)
+
+def flatten_dictionary(dic, pkey='', sep='_'):
+    '''
+        Flatten nested dictionaries using a separator.
+    '''
+    items = []
+    for key, value in dic.items():
+        new_key = (pkey + sep + key) if pkey else key
+        if isinstance(value, dict):
+            # If value is a dict, it should be flattened.
+            items.extend(flatten_dictionary(value, new_key).items())
+        else:
+            # If it is not a dict, move on with life.
+            items.append((new_key, value))
+
+    return dict(items)
