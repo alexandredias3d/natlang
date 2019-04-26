@@ -1,3 +1,4 @@
+import json
 import os
 import tarfile
 import wget
@@ -40,4 +41,12 @@ def prepare():
     make_folder()
     download_data()
     extract_data()
-    
+
+def retrieve(lang, appid):
+    '''
+        Retrieve reviews from a game in a given a language.
+    '''
+    path = f'{folder}/{lang}/{appid}/review'
+    for file in os.listdir(path):
+        with open(f'{path}/{file}') as review:
+            yield json.load(review)
