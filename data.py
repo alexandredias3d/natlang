@@ -2,8 +2,8 @@ import os
 import tarfile
 import wget
 
-br_reviews_url = 'https://www.dropbox.com/s/y6u7rl44nqdoznl/br.tar.gz?dl=0'
-en_reviews_url = 'https://www.dropbox.com/s/wboo4atryaw19bv/en.tar.gz?dl=0'
+br_reviews_url = 'https://dl.dropboxusercontent.com/s/y6u7rl44nqdoznl/br.tar.gz?dl=0'
+en_reviews_url = 'https://dl.dropboxusercontent.com/s/wboo4atryaw19bv/en.tar.gz?dl=0'
 
 folder = '../dat'
 
@@ -27,8 +27,8 @@ def extract_data():
     files = [file for file in os.listdir(folder) if file.endswith('.tar.gz')]
     for file in files:
         try:
-            tarfile.open(f'{folder}/{file}').extractall()
-            _.close()
+            with tarfile.open(f'{folder}/{file}') as tar:
+                tar.extractall(f'{folder}/')
         except tarfile.ReadError:
             print('\nThis Python wasn\'t compiled with zlib support. Please, '
                   'extract the data manually.')
