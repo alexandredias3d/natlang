@@ -158,4 +158,8 @@ class LacioWeb:
         '''
             Map entire corpus to universal tagset.
         '''
-
+        self.universal_tagged_sents = {}
+        for corpus in self.corpus:
+            self.universal_tagged_sents[corpus] = [
+                self.map_sentence_tags(sentence) for sentence in 
+                self.corpus[corpus].tagged_sents()]
