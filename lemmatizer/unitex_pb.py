@@ -38,7 +38,7 @@ class UnitexPBDictionary:
         error_msg = '''
                         Valid names are DELAS, DELAF, and DELACF.
                     '''
-
+        name = name.upper()
         if name in valid:
             return valid[name][version]
         raise Exception(error_msg)
@@ -74,12 +74,12 @@ class UnitexPBDictionary:
 
     def _validate_dictionary_filename(self, name):
         '''
-            Get the actual filename of the dictionary as it might have a
+        Get the actual filename of the dictionary as it might have a
             different name from the zipfile.
         '''
         for file in os.listdir(f'{self.root_path}'):
             if file.endswith('.dic'):
-                if name in file.upper():
+                if name.upper() in file.upper():
                     return file
         raise Exception(f'Could not find a filename for {name}')
 
@@ -112,7 +112,8 @@ class UnitexPBDictionary:
         unitag.update({k: 'CONJ' for k in ['CONJ']})
 
         # Determiners: DET
-        unitag.update({k: 'DET' for k in ['Det+Art+Def', 'Det+Art+Ind']})
+        unitag.update({k: 'DET' for k in ['Det+Art+Def', 'Det+Art+Ind',
+                                          'DET+Art+Def', 'DET+Art+Ind']})
 
         # Nouns: NOUN
         # N+Pr seems to be a proper noun: buarque, coimbra...
@@ -133,8 +134,8 @@ class UnitexPBDictionary:
                                           'PREPXDET+Dem',
                                           'PREPXDET+Ind', 'PREPXPREP',
                                           'PREPXPREP',
-                                          'PREPXPRO+Dem', 'PREPXPRO+Inst',
-                                          'PREPXPRO+Pes', 'PREPXPRO+Pes',
+                                          'PREPXPRO+Dem', 'PREPXPRO+Int',
+                                          'PREPXPRO+Ind', 'PREPXPRO+Pes',
                                           'PREPXPRO+Rel', 'PROXPRO+DemXInd',
                                           'PROXPRO+PosXTra']})
 
@@ -152,6 +153,18 @@ class UnitexPBDictionary:
             Currently only DELAF is supported.
         '''
         filename = self._validate_dictionary_filename(name)
+        name = name.upper()
+        if name == 'DELAF':
+            self._read_delaf(filename)
+        elif name == 'DELAS':
+            raise NotImplementedError('Currently, DELAS is not supported')
+        elif name == 'DELACF':
+            raise NotImplementedError('Currently, DELACF is not supported')
+
+    def _read_delaf(self, filename, universal_tagset=True):
+        '''
+            Read UnitexPB DELAF dictionary.
+        '''
         with open(f'{self.root_path}/{filename}', mode='r',
                   encoding='utf-8') as file:
             raw = file.read().replace('\ufeff', '', 1).split('\n')[:-2]
@@ -163,5 +176,9 @@ class UnitexPBDictionary:
         for entry in raw:
             match = re.match(pattern, entry)
             # Should I create a Lexeme class/namedtuple?
-            self.unitexpb_delaf[(match['word'],
-                                 match['postag'])] = match['canon']
+            if universal_tagset:
+                self.unitexpb_delaf[(match['word'],
+                                     self.unitag[match['postag']])] = match['canon']
+            else:
+                self.unitexpb_delaf[(match['word'],
+                                     match['postag'])] = match['canon']
