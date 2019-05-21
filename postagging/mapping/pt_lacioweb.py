@@ -3,12 +3,16 @@ import os
 import requests
 
 class LacioWeb:
+    '''
+        Class to manage the LacioWeb dataset.
+    '''
 
     def __init__(self):
         self.root_path = 'corpus/lacioweb'
         self.root_url = 'http://nilc.icmc.usp.br/nilc/download/corpus{}.txt'
         self.corpus = {}
 
+        self.universal_tagged_sents = {}
         self._universal_mapping()
 
     def _download_corpus(self, name):
@@ -19,26 +23,26 @@ class LacioWeb:
         with open(f'{self.root_path}/corpus{name}.txt', 'w') as file:
             file.write(r.text)
 
-    def _validate_corpus_name(self, name):
+    @classmethod
+    def _validate_corpus_name(cls, name):
         '''
             Check if the given name is a valid corpus name.
             Available options are full, journalistic, literary,
             and didactic.
         '''
-        d = {'full': '100', 
-             'journalistic': 'journalistic',
-             'literary': 'literary',
-             'didactic': 'didactic'}
+        corpora_names = {'full': '100',
+                         'journalistic': 'journalistic',
+                         'literary': 'literary',
+                         'didactic': 'didactic'}
 
         error_msg = '''
                     Valid names are: full, journalistic, 
                     literary, and didactic.
                     '''
 
-        if name in d:
-            return d[name]
-        else:
-            raise Exception(error_msg)
+        if name in corpora_names:
+            return corpora_names[name]
+        raise Exception(error_msg)
 
     def get_corpus(self, names):
         '''
@@ -46,13 +50,13 @@ class LacioWeb:
             full, journalistic, literary, and didactic.
         '''
         os.makedirs(self.root_path, exist_ok=True)
-        
+
         if isinstance(names, list):
             for name in names:
                 self._download_corpus(self._validate_corpus_name(name))
         else:
             self._download_corpus(self._validate_corpus_name(names))
-                
+
     def read_corpus(self, name):
         '''
             Read the corpus using NLTK's TaggedCorpusReader.
@@ -60,10 +64,10 @@ class LacioWeb:
         filename = f'corpus{self._validate_corpus_name(name)}.txt'
         if os.path.exists(f'{self.root_path}/{filename}'):
             self.corpus[name] = nltk.corpus.TaggedCorpusReader(
-                                    root=self.root_path,
-                                    fileids=filename,
-                                    sep='_',
-                                    word_tokenizer=nltk.WhitespaceTokenizer())
+                root=self.root_path,
+                fileids=filename,
+                sep='_',
+                word_tokenizer=nltk.WhitespaceTokenizer())
         else:
             raise FileNotFoundError('Could not find the corpus.')
 
@@ -71,8 +75,8 @@ class LacioWeb:
         '''
             Provide a mapping from the NILC tagset used in the
             LacioWeb corpus. The following tags were directly extracted
-            from the data and inconsistencies were analyzed. 
-            
+            from the data and inconsistencies were analyzed.
+
             NILC tagset:
             http://www.nilc.icmc.usp.br/nilc/download/tagsetcompleto.doc
         '''
@@ -80,7 +84,7 @@ class LacioWeb:
 
         # Punctuation: .
         d.update({k: '.' for k in ['!', '"', "'", '(', ')', ',', '-', '.',
-                                       '...', ':', ';', '?', '[', ']']})
+                                   '...', ':', ';', '?', '[', ']']})
         # Adjectives: ADJ
         d.update({k: 'ADJ' for k in ['ADJ']})
 
@@ -101,17 +105,17 @@ class LacioWeb:
 
         # Pronouns: PRON
         d.update({k: 'PRON' for k in ['PAPASS', 'PD', 'PIND', 'PINT',
-                     'PPOA', 'PPOA+PPOA', 'PPOT', 'PPR', 'PPS',
-                     'PR', 'PREAL', 'PTRA', 'LP']})
+                                      'PPOA', 'PPOA+PPOA', 'PPOT', 'PPR', 'PPS',
+                                      'PR', 'PREAL', 'PTRA', 'LP']})
 
         # Particles: PRT
         d.update({k: 'PRT' for k in ['PDEN', 'LDEN']})
 
         # Adposition: ADP
         d.update({k: 'ADP' for k in ['PREP', 'PREP+ADJ', 'PREP+ADV',
-                     'PREP+ART', 'PREP+N', 'PREP+PD', 'PREP+PPOA',
-                     'PREP+PPOT', 'PREP+PPR', 'PREP+PREP', 'LPREP',
-                     'LPREP+ART']})
+                                     'PREP+ART', 'PREP+N', 'PREP+PD',
+                                     'PREP+PPOA', 'PREP+PPOT', 'PREP+PPR',
+                                     'PREP+PREP', 'LPREP', 'LPREP+ART']})
 
         '''
             AUX is a typo from VAUX (four occurrences):
@@ -125,11 +129,13 @@ class LacioWeb:
         '''
         # Verbs: VERB
         d.update({k: 'VERB' for k in ['VAUX', 'VAUX!PPOA', 'VAUX+PPOA',
-                     'VBI', 'VBI+PAPASS', 'VBI+PPOA', 'VBI+PPR', 'VINT',
-                     'VINT+PAPASS', 'VINT+PPOA', 'VINT+PREAL', 'VLIG',
-                     'VLIG+PPOA', 'VTD', 'VTD!PPOA', 'VTD+PAPASS', 
-                     'VTD+PPOA', 'VTD+PPR', 'VTD+PREAL', 'VTI', 'VTI+PPOA',
-                     'VTI+PREAL', 'AUX', 'INT']})
+                                      'VBI', 'VBI+PAPASS', 'VBI+PPOA',
+                                      'VBI+PPR', 'VINT', 'VINT+PAPASS',
+                                      'VINT+PPOA', 'VINT+PREAL', 'VLIG',
+                                      'VLIG+PPOA', 'VTD', 'VTD!PPOA',
+                                      'VTD+PAPASS', 'VTD+PPOA', 'VTD+PPR',
+                                      'VTD+PREAL', 'VTI', 'VTI+PPOA',
+                                      'VTI+PREAL', 'AUX', 'INT']})
 
         '''
             IL should probably be residual there are two occurrences:
@@ -158,8 +164,7 @@ class LacioWeb:
         '''
             Map entire corpus to universal tagset.
         '''
-        self.universal_tagged_sents = {}
         for corpus in self.corpus:
             self.universal_tagged_sents[corpus] = [
-                self.map_sentence_tags(sentence) for sentence in 
+                self.map_sentence_tags(sentence) for sentence in
                 self.corpus[corpus].tagged_sents()]
