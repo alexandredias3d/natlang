@@ -8,8 +8,10 @@ class TaggerFactory:
         since they must provide arguments to the function.
     '''
 
-    @staticmethod
-    def sequence_backoff_factory(*args):
+    def __init__(self, training=None):
+        pass
+    
+    def sequence_backoff_factory(self, *args):
         '''
             Given a list of tuples conntaining tagger names and
             arguments, generate a sequence to be used in the
