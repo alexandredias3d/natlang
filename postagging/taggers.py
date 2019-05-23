@@ -1,5 +1,5 @@
-import nltk
 import pickle
+import nltk
 
 class TaggerFactory:
     '''
@@ -11,10 +11,10 @@ class TaggerFactory:
     @staticmethod
     def sequence_backoff_factory(*args):
         '''
-            Given a list of tuples conntaining tagger names and 
-            arguments, generate a sequence to be used in the 
+            Given a list of tuples conntaining tagger names and
+            arguments, generate a sequence to be used in the
             SequenceBackoffTagger. The first name should be the
-            first tagger to be called, which will backoff to the 
+            first tagger to be called, which will backoff to the
             second tagger and so on.
 
         '''
@@ -33,14 +33,18 @@ class TaggerFactory:
         return [(_clean(name), arguments) for name, arguments in args]
 
 class SequenceBackoffTagger:
+    '''
+        Manage creation of a sequence of backoff taggers.
+    '''
+
     def __init__(self, *args, reverse=True):
         '''
-            Class constructor. Receives a sequence from the 
+            Class constructor. Receives a sequence from the
             sequence_backoff_factory method and creates the
             given tagger combination.
         '''
         self.taggers = []
-        
+
         sequence = reversed(*args) if reverse else args
         for cls, arguments in sequence:
             if issubclass(cls, nltk.DefaultTagger):
@@ -68,7 +72,7 @@ class SequenceBackoffTagger:
         print(row.format(*headers))
         row = '{:<10}{:<10.4f}'
         for tagger in self.taggers:
-            print(row.format(tagger.__class__.__name__.replace('Tagger', ''), 
+            print(row.format(tagger.__class__.__name__.replace('Tagger', ''),
                              tagger.evaluate(test_set)))
 
     def save(self, filepath):
@@ -82,13 +86,16 @@ class SequenceBackoffTagger:
             pickle.dump(self.tagger, outfile)
 
     @classmethod
-    def load(self, filepath):
+    def load(cls, filepath):
         '''
             Load a trained tagger for use. This method will only load
             the final tagger.
         '''
         if filepath.endswith('.pkl'):
             with open(f'{filepath}', 'rb') as infile:
-                self.tagger = pickle.load(infile)
+                tagger = pickle.load(infile)
         else:
             print('Tagger error: invalid format.')
+            tagger = None
+
+        return tagger
