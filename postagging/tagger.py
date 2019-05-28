@@ -1,6 +1,8 @@
 import pickle
 import nltk
 
+from sklearn.metrics import classification_report
+
 
 class SequenceBackoffTagger:
     '''
@@ -19,7 +21,7 @@ class SequenceBackoffTagger:
                                                 min_stem_length, regexps)
 
         taggers = []
-        self._validate_sequence(sequence)
+        sequence = self._validate_sequence(sequence)
         self._validate_tagger_names(sequence)
         sequence = reversed(sequence) if reverse else sequence
 
@@ -27,7 +29,6 @@ class SequenceBackoffTagger:
         for cls in sequence:
             if taggers:
                 self._defaults['backoff'] = taggers[-1]
-                print(self._defaults)
             cls_args = self._inspect_tagger_constructor_args(cls)
             taggers.append(cls(**cls_args))
 
@@ -38,9 +39,15 @@ class SequenceBackoffTagger:
         '''
             Check if the sequence is a list of strings.
         '''
-        if not all(isinstance(element, str) for element in sequence):
-            raise Exception('natlang.postagging: sequence must be a list of'
-                            'strings')
+        if sequence is not None:
+            return ['Trigram', 'Bigram', 'Regex', 'Unigram', 'Affix',
+                    'Default']
+
+        if all(isinstance(element, str) for element in sequence):
+            return sequence
+
+        raise Exception('natlang.postagging: sequence must be a list of'
+                        'strings')
 
     @classmethod
     def _validate_tagger_names(cls, sequence):
@@ -95,7 +102,7 @@ class SequenceBackoffTagger:
             'affix_length': cls._get_affix_affix_length(affix_length),
             'min_stem_length': cls._get_affix_mim_stem_length(min_stem_length),
             'regexps': cls._get_regexp_regexps(regexps)
-                    }
+        }
         return defaults
 
     @classmethod
@@ -149,28 +156,44 @@ class SequenceBackoffTagger:
             is None, the default regex patterns are defined in the list
             patterns below.
         '''
-        patterns = []
+        patterns = [
+            (r'^-?\d+(.\d+)?$', 'NUM')
+        ]
         return regexps if regexps else patterns
 
-    def evaluate(self, test_set):
+    def tag_sentence(self, sentence):
         '''
-            Evaluate the combined tagger on the given test set.
+            Tag the given sentence. If sentence is a string, it will
+            tokenize its words first.
         '''
-        print(self.tagger.evaluate(test_set))
+        if isinstance(sentence, str):
+            sentence = nltk.word_tokenize(sentence)
 
-    def evaluate_all(self, test_set):
+        return self.tagger.tag(sentence)
+
+    def tag_sentences(self, sentences):
         '''
-            Evaluate and print the accuracy for each tagger.
-            Combined taggers get improved performance due to
-            the backoff sequence.
+            Tag the given sentences.
         '''
-        # headers = ['Tagger', 'Accuracy']
-        # row = '{:<10}' * len(headers)
-        # print(row.format(*headers))
-        # row = '{:<10}{:<10.4f}'
-        # for tagger in self.taggers:
-        #     print(row.format(tagger.__class__.__name__.replace('Tagger', ''),
-        #                      tagger.evaluate(test_set)))
+        return [self.tag_sentence(sentence) for sentence in sentences]
+
+    def evaluate(self, test, universal=True):
+        '''
+            Evaluate the trained tagger on test set and present a
+            classification report.
+        '''
+        test_set = [[word for word, tag in sentence] for sentence in test]
+        test_predicted = [self.tag_sentence(sentence) for sentence in test_set]
+
+        def _post_process(unprocessed):
+            processed = []
+            for sublist in unprocessed:
+                for w, t in sublist:
+                    processed.append(t)
+            return processed
+
+        print(classification_report(_post_process(test),
+                                    _post_process(test_predicted)))
 
     def save(self, filepath):
         '''
@@ -192,7 +215,7 @@ class SequenceBackoffTagger:
             with open(f'{filepath}', 'rb') as infile:
                 tagger = pickle.load(infile)
         else:
-            print('Tagger error: invalid format.')
+            print('natlang.postagging: invalid tagger format')
             tagger = None
 
         return tagger
