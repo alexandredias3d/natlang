@@ -4,9 +4,12 @@ class Floresta:
     '''
         Class to manage the Floresta corpus.
     '''
-    def __init__(self, universal_tagset=True):
-        self.corpus = nltk.corpus.floresta
-        if universal_tagset:
+
+    corpus = nltk.corpus.floresta
+    name = 'floresta'
+
+    def __init__(self, universal=True):
+        if universal:
             self.unitags = self._universal_mapping()
             self.universal_tagged_sents = self.map_corpus_tags()
 

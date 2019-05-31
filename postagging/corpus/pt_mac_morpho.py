@@ -5,9 +5,11 @@ class MacMorpho:
         Class to manage the MacMorpho corpus.
     '''
 
-    def __init__(self, universal_tagset=True):
-        self.corpus = nltk.corpus.mac_morpho
-        if universal_tagset:
+
+    corpus = nltk.corpus.mac_morpho
+    name = 'mac_morpho'
+    def __init__(self, universal=True):
+        if universal:
             self.unitags = self._universal_mapping()
             self.universal_tagged_sents = self.map_corpus_tags()
 

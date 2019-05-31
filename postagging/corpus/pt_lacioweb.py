@@ -7,20 +7,25 @@ class LacioWeb:
         Class to manage the LacioWeb dataset.
     '''
 
-    def __init__(self):
-        self.root_path = 'corpus/lacioweb'
-        self.root_url = 'http://nilc.icmc.usp.br/nilc/download/corpus{}.txt'
+    root_path = 'corpus/lacioweb'
+    name = 'lacioweb'
+    root_url = 'http://nilc.icmc.usp.br/nilc/download/corpus{}.txt'
+
+    def __init__(self, name='full', universal=True):
         self.corpus = {}
+        self.read_corpus(name)
+        if universal:
+            self.universal_tagged_sents = {}
+            self._universal_mapping()
+            self.map_corpus_tags()
 
-        self.universal_tagged_sents = {}
-        self._universal_mapping()
-
-    def _download_corpus(self, name):
+    @classmethod
+    def _download_corpus(cls, name):
         '''
             Download the corpus in the given url.
         '''
-        r = requests.get(self.root_url.format(name))
-        with open(f'{self.root_path}/corpus{name}.txt', 'w') as file:
+        r = requests.get(cls.root_url.format(name))
+        with open(f'{cls.root_path}/corpus{name}.txt', 'w') as file:
             file.write(r.text)
 
     @classmethod
@@ -44,18 +49,19 @@ class LacioWeb:
             return corpora_names[name]
         raise Exception(error_msg)
 
-    def get_corpus(self, names):
+    @classmethod
+    def _get_corpus(cls, names):
         '''
             Get each corpus correctly named in names. Available options are
             full, journalistic, literary, and didactic.
         '''
-        os.makedirs(self.root_path, exist_ok=True)
+        os.makedirs(cls.root_path, exist_ok=True)
 
         if isinstance(names, list):
             for name in names:
-                self._download_corpus(self._validate_corpus_name(name))
+                cls._download_corpus(cls._validate_corpus_name(name))
         else:
-            self._download_corpus(self._validate_corpus_name(names))
+            cls._download_corpus(cls._validate_corpus_name(names))
 
     def read_corpus(self, name):
         '''
