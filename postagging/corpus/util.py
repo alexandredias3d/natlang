@@ -1,9 +1,58 @@
+import abc
 import nltk
 import os
 
 from pt_lacioweb import *
 from pt_floresta import *
 from pt_mac_morpho import *
+
+class Corpus(abc.ABC):
+
+    @abstractmethod
+    def __init__(self, corpus=None, default='X', mapping={}):
+        """
+            Abstract Corpus class constructor.
+
+            :param corpus TaggedCorpusReader: corpus reader from NLTK
+            :param default str: default tag to be used if key is not found
+            :param mapping dict: dictionary to map from one tagset to another
+        """
+        self.corpus = corpus
+        self.default = default
+        self.mapping = mapping
+
+    def map_word_tag(self, word, tag):
+        """
+            Map a single word-tag tuple to the tagset present in
+            the mapping dictionary.
+
+            :param word str: current word in sentence
+            :param tag str: current PoS tag of the given word
+            :return: tuple word-tag' where tag' is the new tag
+        """
+        return word, self.mapping.get()
+
+    def map_sentence_tags(self, sentence):
+        """
+            Map tags from a sentence to the tagset present in the
+            mapping dictionary.
+
+            :param sentence list: list of word-tag tuples
+            :return: list of word-tag tuples, where the tags have
+                been mapped to the tagset in mapping
+        """
+        return [self.map_word_tag(word, tag) for word, tag in sentence]
+
+    def map_corpus_tags(self):
+        """
+            Map the entire corpus to the tagset present in the
+            mapping dictionary.
+
+            :return: entire corpus mapped to the tagset present in
+                mapping
+        """
+        return [self.map_sentence_tags(sentence)
+                for sentence in self.corpus.tagged_sents()]
 
 class Corpora:
     '''
