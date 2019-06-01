@@ -1,127 +1,139 @@
-import nltk
+"""
+    Module that handles the LacioWeb corpus from NILC. It can download
+    and read the corpus using the NLTK TaggedCorpusReader. Also, it can
+    convert the original PoS tags to the universal tagset.
+"""
 import os
-import requests
 
-class LacioWeb:
-    '''
+import nltk
+import wget
+
+from util import Corpus
+
+
+class LacioWeb(Corpus):
+    """
         Class to manage the LacioWeb dataset.
-    '''
-
-    root_path = 'corpus/lacioweb'
-    name = 'lacioweb'
-    root_url = 'http://nilc.icmc.usp.br/nilc/download/corpus{}.txt'
+    """
 
     def __init__(self, name='full', universal=True):
-        self.corpus = {}
-        self.read_corpus(name)
+        """
+            LacioWeb class constructor.
+
+            :param name str: name of the corpus to be used
+            :param universal bool: True if the tagset must be mapped to the
+                universal tagset, False otherwise
+        """
+        super().__init__(folder='corpus/lacioweb/')
+        self._url = 'http://nilc.icmc.usp.br/nilc/download/corpus{}.txt'
+        self._name = name
+        self._validate_corpus_name()
+        self._get_corpus()
+
         if universal:
-            self.universal_tagged_sents = {}
-            self._universal_mapping()
-            self.map_corpus_tags()
+            self.mapping = self._universal_mapping()
+            self.mapped_tagged_sents = self.map_corpus_tags()
 
-    @classmethod
-    def _download_corpus(cls, name):
-        '''
-            Download the corpus in the given url.
-        '''
-        r = requests.get(cls.root_url.format(name))
-        with open(f'{cls.root_path}/corpus{name}.txt', 'w') as file:
-            file.write(r.text)
-
-    @classmethod
-    def _validate_corpus_name(cls, name):
-        '''
+    def _validate_corpus_name(self):
+        """
             Check if the given name is a valid corpus name.
             Available options are full, journalistic, literary,
             and didactic.
-        '''
-        corpora_names = {'full': '100',
-                         'journalistic': 'journalistic',
-                         'literary': 'literary',
-                         'didactic': 'didactic'}
+        """
+        valid = {'full':         '100',
+                 'journalistic': 'journalistic',
+                 'literary':     'literary',
+                 'didactic':     'didactic'}
 
-        error_msg = '''
-                    Valid names are: full, journalistic, 
-                    literary, and didactic.
-                    '''
+        try:
+            self._name = valid[self._name]
+        except KeyError:
+            raise Exception('natlang.postagging.pt_lacioweb: invalid corpus '
+                            'name. Valid options are: full, journalistic, '
+                            'literary, and didactic.')
 
-        if name in corpora_names:
-            return corpora_names[name]
-        raise Exception(error_msg)
+    def _get_corpus(self):
+        """
+            Read the corpus. If the an OSError is raised, it means that there
+            is the need to download the corpus.
+        """
+        filename = f'corpus{self._name}.txt'
+        try:
+            self._read_corpus(filename)
+        except OSError:
+            self._download_from_url()
+            self._read_corpus(filename)
 
-    @classmethod
-    def _get_corpus(cls, names):
-        '''
-            Get each corpus correctly named in names. Available options are
-            full, journalistic, literary, and didactic.
-        '''
-        os.makedirs(cls.root_path, exist_ok=True)
+    def _download_from_url(self):
+        """
+            Download the corpus in the given url. Create folder if it
+            does not exist.
+        """
+        os.makedirs(self._folder, exist_ok=True)
+        wget.download(self._url.format(self._name), out=self._folder)
 
-        if isinstance(names, list):
-            for name in names:
-                cls._download_corpus(cls._validate_corpus_name(name))
-        else:
-            cls._download_corpus(cls._validate_corpus_name(names))
-
-    def read_corpus(self, name):
-        '''
+    def _read_corpus(self, filename):
+        """
             Read the corpus using NLTK's TaggedCorpusReader.
-        '''
-        filename = f'corpus{self._validate_corpus_name(name)}.txt'
-        if os.path.exists(f'{self.root_path}/{filename}'):
-            self.corpus[name] = nltk.corpus.TaggedCorpusReader(
-                root=self.root_path,
-                fileids=filename,
-                sep='_',
-                word_tokenizer=nltk.WhitespaceTokenizer())
-        else:
-            raise FileNotFoundError('Could not find the corpus.')
 
-    def _universal_mapping(self):
-        '''
+            :param filename str: corpus filename
+        """
+        self.corpus = nltk.corpus.TaggedCorpusReader(
+            root=self._folder,
+            fileids=filename,
+            sep='_',
+            word_tokenizer=nltk.WhitespaceTokenizer(),
+            encoding='latin-1')
+
+    @staticmethod
+    def _universal_mapping():
+        """
             Provide a mapping from the NILC tagset used in the
             LacioWeb corpus. The following tags were directly extracted
             from the data and inconsistencies were analyzed.
 
             NILC tagset:
             http://www.nilc.icmc.usp.br/nilc/download/tagsetcompleto.doc
-        '''
-        d = {}
+        """
+        unitags = {}
 
         # Punctuation: .
-        d.update({k: '.' for k in ['!', '"', "'", '(', ')', ',', '-', '.',
-                                   '...', ':', ';', '?', '[', ']']})
+        unitags.update({k: '.' for k in ['!', '"', "'", '(', ')', ',', '-',
+                                         '.', '...', ':', ';', '?', '[', ']']})
         # Adjectives: ADJ
-        d.update({k: 'ADJ' for k in ['ADJ']})
+        unitags.update({k: 'ADJ' for k in ['ADJ']})
 
         # Numbers: NUM
-        d.update({k: 'NUM' for k in ['NC', 'ORD', 'NO']})
+        unitags.update({k: 'NUM' for k in ['NC', 'ORD', 'NO']})
 
         # Adverbs: ADV
-        d.update({k: 'ADV' for k in ['ADV', 'ADV+PPOA', 'ADV+PPR', 'LADV']})
+        unitags.update({k: 'ADV' for k in ['ADV', 'ADV+PPOA', 'ADV+PPR',
+                                           'LADV']})
 
         # Conjunctions: CONJ
-        d.update({k: 'CONJ' for k in ['CONJCOORD', 'CONJSUB', 'LCONJ']})
+        unitags.update({k: 'CONJ' for k in ['CONJCOORD', 'CONJSUB', 'LCONJ']})
 
         # Determiners: DET
-        d.update({k: 'DET' for k in ['ART']})
+        unitags.update({k: 'DET' for k in ['ART']})
 
         # Nouns: NOUN
-        d.update({k: 'NOUN' for k in ['N', 'NP']})
+        unitags.update({k: 'NOUN' for k in ['N', 'NP']})
 
         # Pronouns: PRON
-        d.update({k: 'PRON' for k in ['PAPASS', 'PD', 'PIND', 'PINT',
-                                      'PPOA', 'PPOA+PPOA', 'PPOT', 'PPR', 'PPS',
-                                      'PR', 'PREAL', 'PTRA', 'LP']})
+        unitags.update({k: 'PRON' for k in ['PAPASS', 'PD', 'PIND', 'PINT',
+                                            'PPOA', 'PPOA+PPOA', 'PPOT', 'PPR',
+                                            'PPS', 'PR', 'PREAL', 'PTRA',
+                                            'LP']})
 
         # Particles: PRT
-        d.update({k: 'PRT' for k in ['PDEN', 'LDEN']})
+        unitags.update({k: 'PRT' for k in ['PDEN', 'LDEN']})
 
         # Adposition: ADP
-        d.update({k: 'ADP' for k in ['PREP', 'PREP+ADJ', 'PREP+ADV',
-                                     'PREP+ART', 'PREP+N', 'PREP+PD',
-                                     'PREP+PPOA', 'PREP+PPOT', 'PREP+PPR',
-                                     'PREP+PREP', 'LPREP', 'LPREP+ART']})
+        unitags.update({k: 'ADP' for k in ['PREP', 'PREP+ADJ', 'PREP+ADV',
+                                           'PREP+ART', 'PREP+N', 'PREP+PD',
+                                           'PREP+PPOA', 'PREP+PPOT',
+                                           'PREP+PPR', 'PREP+PREP', 'LPREP',
+                                           'LPREP+ART']})
 
         '''
             AUX is a typo from VAUX (four occurrences):
@@ -134,14 +146,15 @@ class LacioWeb:
                 - ocorrido.
         '''
         # Verbs: VERB
-        d.update({k: 'VERB' for k in ['VAUX', 'VAUX!PPOA', 'VAUX+PPOA',
-                                      'VBI', 'VBI+PAPASS', 'VBI+PPOA',
-                                      'VBI+PPR', 'VINT', 'VINT+PAPASS',
-                                      'VINT+PPOA', 'VINT+PREAL', 'VLIG',
-                                      'VLIG+PPOA', 'VTD', 'VTD!PPOA',
-                                      'VTD+PAPASS', 'VTD+PPOA', 'VTD+PPR',
-                                      'VTD+PREAL', 'VTI', 'VTI+PPOA',
-                                      'VTI+PREAL', 'AUX', 'INT']})
+        unitags.update({k: 'VERB' for k in ['VAUX', 'VAUX!PPOA', 'VAUX+PPOA',
+                                            'VBI', 'VBI+PAPASS', 'VBI+PPOA',
+                                            'VBI+PPR', 'VINT', 'VINT+PAPASS',
+                                            'VINT+PPOA', 'VINT+PREAL', 'VLIG',
+                                            'VLIG+PPOA', 'VTD', 'VTD!PPOA',
+                                            'VTD+PAPASS', 'VTD+PPOA',
+                                            'VTD+PPR', 'VTD+PREAL', 'VTI',
+                                            'VTI+PPOA', 'VTI+PREAL', 'AUX',
+                                            'INT']})
 
         '''
             IL should probably be residual there are two occurrences:
@@ -150,27 +163,5 @@ class LacioWeb:
             It seems to be from a didactic chemistry text.
         '''
         # Miscellaneous: X
-        d.update({k: 'X' for k in ['I', 'RES', 'IL']})
-        self.mapping = d
-
-    def map_word_tag(self, word_tag):
-        '''
-            Map a single word-tag tuple to universal tagset.
-        '''
-        return (word_tag[0], self.mapping.get(word_tag[1], 'X'))
-
-    def map_sentence_tags(self, sentence):
-        '''
-            Map tags from a sentence to universal tagset.
-        '''
-        return [(word_tag[0], self.mapping.get(word_tag[1], 'X')) for
-                word_tag in sentence]
-
-    def map_corpus_tags(self):
-        '''
-            Map entire corpus to universal tagset.
-        '''
-        for corpus in self.corpus:
-            self.universal_tagged_sents[corpus] = [
-                self.map_sentence_tags(sentence) for sentence in
-                self.corpus[corpus].tagged_sents()]
+        unitags.update({k: 'X' for k in ['I', 'RES', 'IL']})
+        return unitags
