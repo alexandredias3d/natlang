@@ -1,11 +1,13 @@
 """
-    Utility module that provide useful functionality for easy
-    management of corpora.
+    Utility module that provide an abstract class to handle
+    a corpus.
 """
 import abc
 import os
 
 import nltk
+import wget
+
 
 class Corpus(abc.ABC):
     """
@@ -26,6 +28,7 @@ class Corpus(abc.ABC):
         """
         self._default = default
         self._folder = folder
+        self._url = ''
         self.corpus = corpus
         self.mapping = None
         self.mapped_tagged_sents = []
@@ -38,7 +41,7 @@ class Corpus(abc.ABC):
         if 'nltk' in module:
             self._download_from_nltk()
         else:
-            pass
+            self._download_from_url()
 
     def _download_from_nltk(self):
         """
@@ -51,22 +54,33 @@ class Corpus(abc.ABC):
         except LookupError:
             nltk.download(name, quiet=True)
 
-    @abc.abstractmethod
     def _download_from_url(self):
         """
-            Check whether or not the corpus folder exists and return a
-            boolean to the caller: True if folder was created, meaning
-            that the corpus need to be downloaded; and False if folder
-            already exists, meaning that the corpus do not need to be
-            downloaded.
-
-            :return: True if folder did not exist, False otherwise
+            Try to create the folder to save the corpus. If the folder
+            already exists, there is no need to download the corpus.
+            Otherwise, call wget on the url.
         """
         try:
             os.makedirs(self._folder)
-            return True
+            wget.download(self._url, out=self._folder)
         except FileExistsError:
-            return False
+            pass
+
+    def _to_universal(self):
+        """
+            Convert the tags in the corpus to the universal tagset.
+        """
+        self.mapping = self._universal_mapping()
+        self.mapped_tagged_sents = self.map_corpus_tags()
+
+    @staticmethod
+    @abc.abstractmethod
+    def _universal_mapping():
+        """
+            Method to provide the mapping between the original tagset
+            and the universal tagset that should be provided by the
+            user of a corpus.
+        """
 
     def map_word_tag(self, word, tag):
         """
@@ -100,69 +114,3 @@ class Corpus(abc.ABC):
         """
         return [self.map_sentence_tags(sentence)
                 for sentence in self.corpus.tagged_sents()]
-
-
-#class Corpora:
-#    '''
-#        Class to manage corpora.
-#    '''
-#
-#    def __init__(self, corpora, universal=True):
-#        '''
-#            Class constructor. Receive a list of corpora names and a
-#            boolean to control universal mapping.
-#        '''
-#        self.tagged_sents = []
-#        self._validate_corpus_names(corpora)
-#        for corpus in corpora:
-#            self._download_corpus(corpus)
-#            self.read_corpus(corpus)
-#
-#    @classmethod
-#    def _validate_corpus_names(cls, corpora):
-#        '''
-#            Map a string name into the available corpus
-#            class in natlang.
-#        '''
-#        mapping = {'MACMORPHO': MacMorpho,
-#                   'FLORESTA': Floresta,
-#                   'LACIOWEB': LacioWeb}
-#
-#        def _clean(name):
-#            return name.upper().replace(' ', '').replace('_', '')
-#
-#        try:
-#            for idx, name in enumerate(corpora):
-#                corpora[idx] = mapping[_clean(name)]
-#        except KeyError:
-#            raise Exception('natlang.postagging.corpus: invalid corpus name')
-#
-#    @classmethod
-#    def _download_corpus(cls, corpus):
-#        '''
-#            Download the corpus if it has not yet been downloaded.
-#        '''
-#        try:
-#            nltk.data.find(f'corpora/{corpus.name}')
-#        except LookupError:
-#            nltk.download(corpus.name, quiet=True)
-#
-#        # Hardcoding LacioWeb here. TODO: provide better solution.
-#        if corpus.name == 'lacioweb':
-#            if not os.path.exists(f'corpus/{corpus.name}'):
-#                LacioWeb._get_corpus('full')
-#
-#    def read_corpus(self, cls, universal=True):
-#        '''
-#            Read the given corpus and convert it to universal tagset
-#            if universal is set to True.
-#        '''
-#        corpus = cls(universal=universal)
-#        if universal:
-#
-#            # Due to LacioWeb corpus being a dict, need this check.
-#            # TODO: provide better solution.
-#            if isinstance(corpus, LacioWeb):
-#                self.tagged_sents += corpus.universal_tagged_sents['full']
-#            else:
-#                self.tagged_sents += corpus.universal_tagged_sents
