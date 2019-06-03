@@ -91,6 +91,9 @@ class LacioWeb(Corpus):
 
             NILC tagset:
             http://www.nilc.icmc.usp.br/nilc/download/tagsetcompleto.doc
+            
+            :return: dictionary that maps the current tagset to the
+                universal tagset
         """
         mapping = {
 
