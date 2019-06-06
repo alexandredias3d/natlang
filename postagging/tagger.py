@@ -20,18 +20,37 @@ class Tagger(abc.ABC):
         class.
     """
 
-    def __init__(self, tagger=None, language='portuguese'):
+    def __init__(self, tagger=None, lang='portuguese'):
         """
             Tagger constructor.
 
             :param tagger: tagger from NLTK
-            :param language str: default language to load the tokenizer
+            :param lang str: default language to load the tokenizer
         """
         self.tagger = tagger
-        self.tokenizer = self._load_tokenizer(language)
+        self._sent_tokenizer = None
+        self._sent_tokenize = None
+        self._word_tokenize = nltk.word_tokenize
 
-    @staticmethod
-    def _load_tokenizer(language):
+        self._load_sent_tokenizer(lang)
+
+    @property
+    def tagger(self):
+        """
+            Tagger gettter.
+        """
+        return self._tagger
+
+    @tagger.setter
+    def tagger(self, value):
+        """
+            Tagger setter.
+
+            :param value: tagger object from NLTK
+        """
+        self._tagger = value
+
+    def _load_sent_tokenizer(self, lang):
         """
             Load the correct tokenizer according to the language.
             Download the punkt module if it is not present on the
@@ -39,11 +58,12 @@ class Tagger(abc.ABC):
         """
         try:
             nltk.download('punkt', quiet=True)
-            tokenizer = nltk.data.load(f'tokenizers/punkt/{language}.pickle')
+            self._sent_tokenizer = nltk.data.load(f'tokenizers/punkt/'
+                                                  f'{lang}.pickle')
+            self._sent_tokenize = self._sent_tokenizer.tokenize
         except LookupError:
-            raise Exception('natlang.postagging: could not find a tokenizer '
-                            'for the given language')
-        return tokenizer
+            raise ValueError('natlang.postagging: could not find a sentence '
+                             'tokenizer for the given language')
 
     def evaluate(self, test):
         """
@@ -92,17 +112,39 @@ class Tagger(abc.ABC):
             raise Exception('natlang.postagging.tagger: invalid filepath')
         return Tagger(tagger)
 
-    def tag(self, sentence):
+    def tag(self, arg):
+        """
+            Call the correct tag method based on the given input. If
+            performance is critical, call the correct method instead of
+            this one. In the worst case scenario, this method might check
+            all elements on arg twice (in the case arg contains a list).
+
+            :param arg: sentence, list of sentences or text for tagging
+        """
+        if isinstance(arg, str):
+            return self.tag_untokenized_text(arg)
+        elif isinstance(arg, list):
+            if all(isinstance(item, str) for item in arg):
+                if all(len(item) == 1 for item in arg):
+                    return self.tag_tokenized(arg)
+                else:
+                    print('Here')
+                    return self.tag_untokenized_sentences(arg)
+            elif all(isinstance(item, list) for item in arg):
+                return self.tag_tokenized_sentences(arg)
+        raise ValueError('natlang.postagging: invalid argument format')
+
+    def tag_tokenized(self, sentence):
         """
             Tag the given tokenized sentence.
 
-            :param sentence list: sentence to be tagged already split in
-                tokens
+            :param sentence list: sentence to be tagged already
+                split in tokens
             :return: single tagged sentence
         """
         return self.tagger.tag(sentence)
 
-    def tag_sentences(self, sentences):
+    def tag_tokenized_sentences(self, sentences):
         """
             Tag list of tokenized sentences.
 
@@ -110,7 +152,7 @@ class Tagger(abc.ABC):
                 tagged by the tagger
             :return: all sentences tagged
         """
-        return [self.tag(sentence) for sentence in sentences]
+        return [self.tag_tokenized(sentence) for sentence in sentences]
 
     def tag_untokenized(self, sentence):
         """
@@ -119,7 +161,7 @@ class Tagger(abc.ABC):
             :param sentence str: sentence untokenized
             :return: single tagged sentence
         """
-        return self.tagger.tag(nltk.word_tokenize(sentence))
+        return self.tagger.tag(self._word_tokenize(sentence))
 
     def tag_untokenized_sentences(self, sentences):
         """
@@ -139,7 +181,7 @@ class Tagger(abc.ABC):
             :param text str: untokenized text to be tagged
             :return: text split into tagged sentences
         """
-        return self.tag_untokenized_sentences(self.tokenizer.tokenize(text))
+        return self.tag_untokenized_sentences(self._sent_tokenize(text))
 
 
 class SequenceBackoffTagger(Tagger):
@@ -147,48 +189,64 @@ class SequenceBackoffTagger(Tagger):
         Manage creation of a sequence of backoff taggers.
     """
 
-    def __init__(self, tagger=None, sequence=None, reverse=True,
-                 train=None, tag=None, n=None, regexps=None,
-                 affix_length=None, min_stem_length=None):
+    def __init__(self, sequence=None, reverse=True, tagger=None,
+                 train=None, default_tag=None, ngram_size=None,
+                 regexps=None, affix_length=None, min_stem_length=None):
         """
             Class constructor. Receives a sequence from the
             sequence_backoff_factory method and creates the
             given tagger combination.
         """
-        super().__init__(tagger)
-        self._defaults = self._get_taggers_args(train, tag, n,
-                                                affix_length,
-                                                min_stem_length, regexps)
-        taggers = []
-        sequence = self._validate_sequence(sequence)
-        self._validate_tagger_names(sequence)
-        sequence = reversed(sequence) if reverse else sequence
+        if tagger is not None:
+            super().__init__(tagger)
+        else:
+            self.sequence = sequence
+            self.tagger = tagger
+            self.train = train
+            self.ngram_size = ngram_size
+            self.default_tag = default_tag
+            self.regexps = regexps
+            self.affix_length = affix_length
+            self.min_stem_length = min_stem_length
 
-        for cls in sequence:
-            if taggers:
-                self._defaults['backoff'] = taggers[-1]
-            cls_args = self._inspect_tagger_constructor_args(cls)
-            taggers.append(cls(**cls_args))
+            self.defaults = {
+                    'train':            self.train,
+                    'tag':              self.default_tag,
+                    'n':                self.ngram_size,
+                    'affix_length':     self.affix_length,
+                    'min_stem_length':  self.min_stem_length,
+                    'regexps':          self.regexps
+                }
+            super().__init__(self._create_tagger_sequence(reverse))
 
-        self.tagger = taggers[-1]
-
-    @staticmethod
-    def _validate_sequence(sequence):
+    @property
+    def sequence(self):
         """
-            Check if the sequence is a list of strings.
+            Sequence getter.
         """
-        if sequence is None:
-            return ['Trigram', 'Bigram', 'Regex', 'Unigram', 'Affix',
-                    'Default']
+        return self._sequence
 
-        if all(isinstance(element, str) for element in sequence):
-            return sequence
+    @sequence.setter
+    def sequence(self, value):
+        """
+            Sequence setter. Set sequence to the given value if it is
+            a list of strings. Raise an exception if at least one element
+            of the list is not a string. If value is None, set sequence
+            to the default value:
+            ['trigram', 'bigram', 'unigram', 'regex', 'affix', 'default']
 
-        raise Exception('natlang.postagging: sequence must be a list of'
-                        'strings')
+            :param value list: sequence of tagger names
+        """
+        if value is None:
+            self._sequence = ['trigram', 'bigram', 'unigram', 'regex',
+                              'affix', 'default']
+        elif all(isinstance(element, str) for element in value):
+            self._sequence = value
+        else:
+            raise ValueError('natlang.postagging: sequence must be a list of '
+                             'strings containing tagger names')
 
-    @staticmethod
-    def _validate_tagger_names(sequence):
+    def _tagger_names(self, reverse):
         """
             Map string names into NLTK tagger classes.
         """
@@ -203,12 +261,26 @@ class SequenceBackoffTagger(Tagger):
 
         def _clean(name):
             return name.upper().replace('TAGGER', '').replace(' ', '')
-
         try:
-            for idx, tagger in enumerate(sequence):
-                sequence[idx] = mapping[_clean(tagger)]
+            taggers = []
+            for tagger in self.sequence:
+                taggers.append(mapping[_clean(tagger)])
+            return reversed(taggers) if reverse else taggers
         except KeyError:
             raise Exception('natlang.postagging: invalid tagger name')
+
+    def _create_tagger_sequence(self, reverse):
+        """
+            Create sequence of taggers an return the most external one.
+        """
+        taggers = []
+        for cls in self._tagger_names(reverse):
+            if taggers:
+                self.defaults['backoff'] = taggers[-1]
+            cls_args = self._inspect_tagger_constructor_args(cls)
+            taggers.append(cls(**cls_args))
+
+        return taggers[-1]
 
     def _inspect_tagger_constructor_args(self, cls):
         """
@@ -226,117 +298,115 @@ class SequenceBackoffTagger(Tagger):
         argcount = cls.__init__.__code__.co_argcount
         varnames = cls.__init__.__code__.co_varnames
 
-        return {key: self._defaults[key] for key in varnames[1:argcount] if
-                key in self._defaults}
+        return {key: self.defaults[key] for key in varnames[1:argcount] if
+                key in self.defaults}
 
-    def _get_taggers_args(self, train, tag, n, affix_length,
-                          min_stem_length, regexps):
+    @property
+    def train(self):
         """
-            Set the default values to be used as arguments on tagger
-            creation.
-
-            :param train list: list of sentences for training
-            :param tag tuple: tuple containing word and PoS tag
-            :param n int: size of ngram
-            :param affix_length int: size of word affix
-            :param min_stem_length int: minimum size of word stem
-            :param regexps list: list of regular expressions
+            Training data getter.
         """
-        defaults = {
-            'train': self._get_train(train),
-            'tag': self._get_default_tag(tag),
-            'n': self._get_ngram_n(n),
-            'affix_length': self._get_affix_affix_length(affix_length),
-            'min_stem_length': self._get_affix_mim_stem_length(
-                min_stem_length),
-            'regexps': self._get_regexp_regexps(regexps)
-        }
-        return defaults
+        return self._train
 
-    @staticmethod
-    def _get_train(train):
+    @train.setter
+    def train(self, value):
         """
-            Given a trainining set as a parameter, check if it is not None.
-            Raise an error in case the train is None (some Sequential
-            Backoff Taggers need to train on data).
+            Training data setter. Set training data to value if it is not
+            None, raise an exception otherwise (some taggers need training
+            data).
 
-            :param train list: list of sentences for training
-            :return: train if it is not None or raise and exception otherwise
+            :param value list: list of sentences for training
         """
-        if train is not None:
-            return train
-        raise Exception('natlang.postagging: missing train data for '
-                        'SequenceBackoffTagger')
+        if value is not None:
+            self._train = value
+        else:
+            raise Exception('natlang.postagging: missing training data for '
+                            'SequenceBackoffTagger')
 
-    @staticmethod
-    def _get_default_tag(tag):
+    @property
+    def default_tag(self):
         """
-            Get the tag to be used by the Default Tagger.
-
-            :param tag str: default tag
-            :return: tag if it is not None, 'N' otherwise (universal tag
-                for Noun)
+            Default tag getter.
         """
-        return tag if tag else 'N'
+        return self._default_tag
 
-    @staticmethod
-    def _get_ngram_n(n):
+    @default_tag.setter
+    def default_tag(self, value):
         """
-            Get the size of the Ngram Tagger. Currently it supports only one
-            Ngram tagger.
+            Default tag setter. Set the default tag to value if it is not
+            None, set to 'N' otherwise.
 
-            :param n int: size of ngram
-            :return: n if it is not None, 4 otherwise
+            :param value str: default tag
         """
-        return n if n is not None else 4
+        self._default_tag = value if value else 'N'
 
-    @staticmethod
-    def _get_affix_affix_length(affix_length):
+    @property
+    def ngram_size(self):
         """
-        Get the size of the affix to be used by the Affix Tagger.
-
-            :param affix_length int: size of word affix
-            :return: affix_length if it is not None, 3 otherwise
+            N-gram size getter.
         """
-        return affix_length if affix_length else 3
+        self._ngram_size
 
-    @staticmethod
-    def _get_affix_mim_stem_length(min_stem_length):
+    @ngram_size.setter
+    def ngram_size(self, value):
         """
-            Get the minimum size of the stem to be used by the Affix Tagger.
+            N-gram size setter. Set the n-gram (contiguous sequence of size n)
+            size to value if it is not None, set to 4 otherwise.
 
-            :param min_stem_length int: size of word stem
-            :return: return min_stem_length if it is not None, 2 otherwise
+            :param value int: size of ngram
         """
-        return min_stem_length if min_stem_length else 2
+        self._ngram_size = value if value else 4
 
-    @staticmethod
-    def _get_regexp_regexps(regexps):
+    @property
+    def affix_length(self):
         """
-            Get the regex patterns to be used by the RegexP Tagger.
+            Affix length getter.
+        """
+        return self._affix_length
 
-            :param regexps list: list of regular expressions
-            :return: regexps if it is not None, patterns otherwise
+    @affix_length.setter
+    def affix_length(self, value):
+        """
+            Affix length setter. Set affix length of word to value if it is
+            not None, set to 3 otherwise.
+
+            :param value int: size of word affix
+        """
+        self._affix_length = value if value else 3
+
+    @property
+    def min_stem_length(self):
+        """
+            Minimum stem length getter.
+        """
+        return self._min_stem_length
+
+    @min_stem_length.setter
+    def min_stem_length(self, value):
+        """
+            Minimum stem length setter. Set minimum stem length of word to
+            value if it is not None, set to 2 otherwise.
+
+            :param value int: size of word stem
+        """
+        self._min_stem_length = value if value else 2
+
+    @property
+    def regexps(self):
+        """
+            Regex patterns getter.
+        """
+        return self._regexps
+
+    @regexps.setter
+    def regexps(self, value):
+        """
+            Regex patterns setter. Set the regex patterns to value if it is
+            not None, set to local variable patterns otherwise.
+
+            :param value list: list of regular expressions
         """
         patterns = [
             (r'^-?\d+(.\d+)?$', 'NUM')
         ]
-        return regexps if regexps else patterns
-
-    def save(self, filepath):
-        """
-            Save the current tagger to a file.
-
-            :param filepath str: output filepath
-        """
-        super().save(filepath)
-
-    @staticmethod
-    def load(filepath):
-        """
-            Load a tagger from a file.
-
-            :param filepath str: input filepath
-            :return: Tagger instance
-        """
-        super().load(filepath)
+        self._regexps = value if value else patterns
