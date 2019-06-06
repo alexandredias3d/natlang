@@ -12,6 +12,7 @@ import nltk
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report
 
+from util import flatten
 
 class Tagger(abc.ABC):
     """
@@ -64,6 +65,28 @@ class Tagger(abc.ABC):
         except LookupError:
             raise ValueError('natlang.postagging: could not find a sentence '
                              'tokenizer for the given language')
+
+    def accuracy(self, y_true, y_pred, normalize=True):
+        """
+            Compute the tagger accuracy. Flatten lists to calculate
+            the accuracy. It is also possible to achieve the same
+            result using map, sum, and lambdas to compute the
+            weighted average.
+
+            :param y_true: ground truth
+            :param y_pred: predicted values by tagger
+        """
+
+        y_true_flat = flatten(y_true)
+        y_pred_flat = flatten(y_pred)
+
+        return accuracy_score(y_true_flat, y_pred_flat, normalize)
+
+    def confusion_matrix(self):
+        pass
+
+    def report(self):
+        pass
 
     def evaluate(self, test):
         """
