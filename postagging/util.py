@@ -3,6 +3,9 @@
 """
 from itertools import chain
 
+UNIVERSAL_TAGSET = ['VERB', 'NOUN', 'PRON', 'ADJ', 'ADV', 'ADP', 'CONJ',
+                    'DET', 'NUM', 'PRT', 'X', '.']
+
 def flatten(nonflat):
     """
         Reduce one level of the given nested list.
@@ -10,4 +13,4 @@ def flatten(nonflat):
         :param nonflat list: nonflat list
         :return: flat list
     """
-    return chain.from_iterable(nonflat)
+    return list(chain.from_iterable(nonflat))

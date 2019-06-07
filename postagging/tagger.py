@@ -8,11 +8,16 @@
 import abc
 import pickle
 import nltk
+import numpy as np
+import seaborn as sns
 
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
 
 from util import flatten
+from util import UNIVERSAL_TAGSET
+
 
 class Tagger(abc.ABC):
     """
@@ -66,46 +71,105 @@ class Tagger(abc.ABC):
             raise ValueError('natlang.postagging: could not find a sentence '
                              'tokenizer for the given language')
 
-    def accuracy(self, y_true, y_pred, normalize=True):
+    def _prepare_test_set(self, test):
         """
-            Compute the tagger accuracy. Flatten lists to calculate
-            the accuracy. It is also possible to achieve the same
-            result using map, sum, and lambdas to compute the
-            weighted average.
+            Extract features (words in sentences) and targets (tags) from
+            the test set.
 
-            :param y_true: ground truth
-            :param y_pred: predicted values by tagger
+            :param test: list of tagged sentences
+            :return: features and targets of the given test set
         """
+        x_feat = [[word for word, tag in sent] for sent in test]
+        y_true = [[tag for word, tag in sent] for sent in test]
 
-        y_true_flat = flatten(y_true)
-        y_pred_flat = flatten(y_pred)
+        return x_feat, y_true
 
-        return accuracy_score(y_true_flat, y_pred_flat, normalize)
-
-    def confusion_matrix(self):
-        pass
-
-    def report(self):
-        pass
-
-    def evaluate(self, test):
+    def evaluate(self, test, accuracy=True, conf_matrix=True,
+                 plot=False, report=True, normalize=True,
+                 target_names=UNIVERSAL_TAGSET, output_dict=False):
         """
-            Evaluate the trained tagger on test set and show a
-            classification report.
-
-            :param test list: list of tagged sentences (already tokenized) to
-                evaluate the tagger
+            Evaluate the tagger on the given test set. The test set
+            must be a list of tagged sentences.
         """
-        test_set = [[word for word, tag in sentence] for sentence in test]
-        y_pred = [[tag for word, tag in self.tag(sentence)]
-                  for sentence in test_set]
-        y_true = [[tag for word, tag in sentence] for sentence in test]
+        x_feat, y_true = self._prepare_test_set(test)
 
-        average_accuracy = sum(map(lambda x, y: x * len(y),
-                                   map(accuracy_score, y_true, y_pred),
-                                   test_set))/sum(len(x) for x in test_set)
+        y_pred = [[tag for word, tag in sent] for sent in
+                  self.tag_tokenized_sentences(x_feat)]
 
-        print(f'average tagger accuracy: {average_accuracy}')
+        y_true = flatten(y_true)
+        y_pred = flatten(y_pred)
+
+        if accuracy:
+            accuracy = self._accuracy(y_true, y_pred, normalize)
+        if conf_matrix:
+            conf_matrix = self._confusion_matrix(y_true, y_pred, normalize,
+                                                 plot, labels=target_names)
+        if report:
+            report = self._classification_report(y_true, y_pred,
+                                                 target_names,
+                                                 output_dict)
+
+        return accuracy, conf_matrix, report
+
+    @staticmethod
+    def _accuracy(y_true, y_pred, normalize=True):
+        """
+            Compute the tagger accuracy using sklearn. Flatten
+            lists to calculate the accuracy. It is also possible
+            to achieve the same result using map, sum, and lambdas
+            to compute the weighted average.
+
+            :param y_true: ground truth tags
+            :param y_pred: predicted tags by the tagger
+        """
+        return accuracy_score(y_true, y_pred, normalize)
+
+    @staticmethod
+    def _confusion_matrix(y_true, y_pred, normalize=True, plot=False, 
+                          labels=None):
+        """
+            Use sklearn to compute the confusion matrix. Plot the
+            figure if plot is True.
+
+            :param y_true: ground truth tags
+            :param y_pred: predicted tags by the tagger
+            :return: confusion matrix
+        """
+        cm = confusion_matrix(y_true, y_pred)
+        fmt = 'd'
+        if normalize:
+            cm = cm.astype('float')/cm.sum(axis=1)[:, np.newaxis]
+            fmt = 'f'
+
+        if plot:
+            sns.set()
+            sns.heatmap(cm, annot=True, fmt=fmt, xticklabels=labels,
+                        yticklabels=labels)
+        return cm
+
+    @staticmethod
+    def _classification_report(y_true, y_pred, 
+                               target_names=UNIVERSAL_TAGSET,
+                               output_dict=False):
+        """
+            Use sklearn to compute the classification report, in which
+            the precision, recall, f1-score and support are calculated
+            for each tag.
+
+            :param y_true: ground truth tags
+            :param y_pred: predicted tags by the tagger
+            :param target_names: list of label names to be used in the
+                report
+            :param output_dict: True if should return a dict, False if
+                it should return a string
+            :return: report in string or dict format
+        """
+        report = classification_report(y_true, y_pred, 
+                                       target_names=target_names,
+                                       output_dict=output_dict)
+        if not output_dict:
+            print(report)
+        return report
 
     def save(self, filepath):
         """
@@ -151,7 +215,6 @@ class Tagger(abc.ABC):
                 if all(len(item) == 1 for item in arg):
                     return self.tag_tokenized(arg)
                 else:
-                    print('Here')
                     return self.tag_untokenized_sentences(arg)
             elif all(isinstance(item, list) for item in arg):
                 return self.tag_tokenized_sentences(arg)
