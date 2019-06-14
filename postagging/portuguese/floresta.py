@@ -85,6 +85,10 @@ class Floresta(Corpus):
 
         return mapping
 
+    def map_word_tag(self, word_tag):
+        return super().map_word_tag((word_tag[0],
+                                     self._get_pos_tag(word_tag[1])))
+
     @staticmethod
     def _get_pos_tag(tag):
         """

@@ -82,7 +82,7 @@ class Corpus(abc.ABC):
             user of a corpus.
         """
 
-    def map_word_tag(self, word, tag):
+    def map_word_tag(self, word_tag):
         """
             Map a single word-tag tuple to the tagset present in
             the mapping dictionary.
@@ -91,7 +91,12 @@ class Corpus(abc.ABC):
             :param tag str: current PoS tag of the given word
             :return: tuple word-tag' where tag' is the new tag
         """
-        return word, self.mapping.get(tag, self._default)
+        word = word_tag[0]
+        tag = word_tag[1]
+        try:
+            return word, self.mapping[tag]
+        except KeyError:
+            return word, self._default
 
     def map_sentence_tags(self, sentence):
         """
@@ -102,7 +107,7 @@ class Corpus(abc.ABC):
             :return: list of word-tag tuples, where the tags have
                 been mapped to the tagset in mapping
         """
-        return [self.map_word_tag(word, tag) for word, tag in sentence]
+        return list(map(self.map_word_tag, sentence))
 
     def map_corpus_tags(self):
         """
@@ -112,5 +117,4 @@ class Corpus(abc.ABC):
             :return: entire corpus mapped to the tagset present in
                 mapping
         """
-        return [self.map_sentence_tags(sentence)
-                for sentence in self.corpus.tagged_sents()]
+        return map(self.map_sentence_tags, self.corpus.tagged_sents())
