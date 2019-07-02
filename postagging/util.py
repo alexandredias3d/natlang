@@ -6,6 +6,7 @@ from itertools import chain
 UNIVERSAL_TAGSET = ['VERB', 'NOUN', 'PRON', 'ADJ', 'ADV', 'ADP', 'CONJ',
                     'DET', 'NUM', 'PRT', 'X', '.']
 
+
 def flatten(nonflat):
     """
         Reduce one level of the given nested list.

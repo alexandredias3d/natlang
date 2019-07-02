@@ -71,7 +71,8 @@ class Tagger(abc.ABC):
             raise ValueError('natlang.postagging: could not find a sentence '
                              'tokenizer for the given language')
 
-    def _prepare_test_set(self, test):
+    @staticmethod
+    def _prepare_test_set(test):
         """
             Extract features (words in sentences) and targets (tags) from
             the test set.
@@ -86,7 +87,7 @@ class Tagger(abc.ABC):
 
     def evaluate(self, test, accuracy=True, conf_matrix=True,
                  plot=False, report=True, normalize=True,
-                 target_names=UNIVERSAL_TAGSET, output_dict=False):
+                 target_names=None, output_dict=False):
         """
             Evaluate the tagger on the given test set. The test set
             must be a list of tagged sentences.
@@ -98,6 +99,9 @@ class Tagger(abc.ABC):
 
         y_true = flatten(y_true)
         y_pred = flatten(y_pred)
+
+        if target_names is None:
+            target_names = UNIVERSAL_TAGSET
 
         if accuracy:
             accuracy = self._accuracy(y_true, y_pred, normalize)
@@ -125,7 +129,7 @@ class Tagger(abc.ABC):
         return accuracy_score(y_true, y_pred, normalize)
 
     @staticmethod
-    def _confusion_matrix(y_true, y_pred, normalize=True, plot=False, 
+    def _confusion_matrix(y_true, y_pred, normalize=True, plot=False,
                           labels=None):
         """
             Use sklearn to compute the confusion matrix. Plot the
@@ -148,8 +152,8 @@ class Tagger(abc.ABC):
         return cm
 
     @staticmethod
-    def _classification_report(y_true, y_pred, 
-                               target_names=UNIVERSAL_TAGSET,
+    def _classification_report(y_true, y_pred,
+                               target_names=None,
                                output_dict=False):
         """
             Use sklearn to compute the classification report, in which
@@ -164,11 +168,9 @@ class Tagger(abc.ABC):
                 it should return a string
             :return: report in string or dict format
         """
-        report = classification_report(y_true, y_pred, 
+        report = classification_report(y_true, y_pred,
                                        target_names=target_names,
                                        output_dict=output_dict)
-        if not output_dict:
-            print(report)
         return report
 
     def save(self, filepath):
@@ -275,7 +277,7 @@ class SequenceBackoffTagger(Tagger):
         Manage creation of a sequence of backoff taggers.
     """
 
-    def __init__(self, sequence=None, reverse=True, tagger=None,
+    def __init__(self, sequence, reverse=True, tagger=None,
                  train=None, default_tag=None, ngram_size=None,
                  regexps=None, affix_length=None, min_stem_length=None):
         """
@@ -296,12 +298,12 @@ class SequenceBackoffTagger(Tagger):
             self.min_stem_length = min_stem_length
 
             self.defaults = {
-                    'train':            self.train,
-                    'tag':              self.default_tag,
-                    'n':                self.ngram_size,
-                    'affix_length':     self.affix_length,
-                    'min_stem_length':  self.min_stem_length,
-                    'regexps':          self.regexps
+                'train':            self.train,
+                'tag':              self.default_tag,
+                'n':                self.ngram_size,
+                'affix_length':     self.affix_length,
+                'min_stem_length':  self.min_stem_length,
+                'regexps':          self.regexps
                 }
             super().__init__(self._create_tagger_sequence(reverse))
 
@@ -420,11 +422,11 @@ class SequenceBackoffTagger(Tagger):
     def default_tag(self, value):
         """
             Default tag setter. Set the default tag to value if it is not
-            None, set to 'N' otherwise.
+            None, set to 'NOUN' otherwise.
 
             :param value str: default tag
         """
-        self._default_tag = value if value else 'N'
+        self._default_tag = value if value else 'NOUN'
 
     @property
     def ngram_size(self):
@@ -496,3 +498,213 @@ class SequenceBackoffTagger(Tagger):
             (r'^-?\d+(.\d+)?$', 'NUM')
         ]
         self._regexps = value if value else patterns
+
+
+class BrillTagger(Tagger):
+    """
+        Manage the creation of a Brill Tagger, which, given an baseline
+        tagger, is capable of improving its performance through
+        transformation based learning.
+    """
+
+    def __init__(self, initial_tagger, train, templates=None,
+                 trace=0, deterministic=None, ruleformat='str',
+                 max_rules=200, min_score=2, min_acc=None):
+
+        self.initial_tagger = initial_tagger
+        self.train = train
+        self.templates = templates
+        self.trace = trace
+        self.deterministic = deterministic
+        self.ruleformat = ruleformat
+        self.max_rules = max_rules
+        self.min_score = min_score
+        self.min_acc = min_acc
+
+        self._train_brill()
+
+    @property
+    def initial_tagger(self):
+        """
+            Initial tagger getter.
+        """
+        return self._initial_tagger
+
+    @initial_tagger.setter
+    def initial_tagger(self, initial_tagger):
+        """
+            Initial tagger setter. The Brill Tagger improves the performance
+            of the given tagger through transitional based learning, where
+            patches are applied to rules aiming to reduce the error.
+
+            :param initial_tagger: baseline tagger
+        """
+        if initial_tagger is not None:
+            self._initial_tagger = initial_tagger
+        else:
+            raise Exception('natlang.postagging: missing initial tagger for '
+                            'BrillTagger')
+
+    @property
+    def train(self):
+        """
+            Training data getter.
+        """
+        return self._train
+
+    @train.setter
+    def train(self, value):
+        """
+            Training data setter. Set training data to value if it is not
+            None, raise an exception otherwise (Brill Tagger needs training
+            data to improve the performance of the given initial tagger).
+
+            TODO: consider moving the training property to the super class.
+
+            :param value list: list of sentences for training
+        """
+        if value is not None:
+            self._train = value
+        else:
+            raise Exception('natlang.postagging: missing training data for '
+                            'BrillTagger')
+
+    @property
+    def templates(self):
+        """
+            Templates getter.
+        """
+        return self._templates
+
+    @templates.setter
+    def templates(self, templates):
+        """
+            Templates setter. The Brill Tagger rules are built upon templates.
+            Each template has a combination of the surrounding features (words
+            and PoS tags).
+
+            By default it uses 37 templates based on the fnTBL.
+        """
+        self._templates = templates if templates else nltk.tag.brill.fntbl37()
+
+    @property
+    def trace(self):
+        """
+            Trace getter.
+        """
+        return self._trace
+
+    @trace.setter
+    def trace(self, trace):
+        """
+            Trace setter. The verbosity of the Brill Tagger training process.
+            Higher values means that more information will be printed. After
+            looking at the BrillTaggerTrainer code, it seems that 4 is the
+            biggest possible value.
+        """
+        self._trace = trace if trace else 0
+
+    @property
+    def deterministic(self):
+        """
+            Tie breaking getter.
+        """
+        return self._deterministic
+
+    @deterministic.setter
+    def deterministic(self, deterministic):
+        """
+            Tie breaking setter. Defines if the tie breaking should be
+            deterministic (True) or not (False). By default, it uses
+            deterministic tie breaking to provide consistency between
+            different runs.
+        """
+        self._deterministic = deterministic if deterministic else True
+
+    @property
+    def ruleformat(self):
+        """
+            Rule format getter.
+        """
+        return self._ruleformat
+
+    @ruleformat.setter
+    def ruleformat(self, ruleformat):
+        """
+            Rule format setter. Format that should be use when outputing a
+            rule.
+        """
+        self._ruleformat = ruleformat if ruleformat else 'str'
+
+    @property
+    def max_rules(self):
+        """
+            Maximum rules getter.
+        """
+        return self._max_rules
+
+    @max_rules.setter
+    def max_rules(self, max_rules):
+        """
+            Maximum rules setter. The tranining process will produce at most
+            the value defined in maximum rules.
+        """
+        self._max_rules = max_rules if max_rules else 200
+
+    @property
+    def min_score(self):
+        """
+            Mininimum score getter.
+        """
+        return self._min_score
+
+    @min_score.setter
+    def min_score(self, min_score):
+        """
+            Minimum score setter. The score threshold that will be used to
+            decide if a rule should be modified or not.
+        """
+        self._min_score = min_score if min_score else 2
+
+    @property
+    def min_acc(self, ):
+        """
+            Mininimum accuracy getter.
+        """
+        return self._min_acc
+
+    @min_acc.setter
+    def min_acc(self, min_acc):
+        """
+            Minimum accuraccy setter. The accuracy threshold that will be used
+            to decide if a rule should be modified or not.
+        """
+        self._min_acc = min_acc if min_acc else None
+
+    def _train_brill(self):
+        """
+            Create a Brill Tagger Trainer and train a Brill Tagger using the
+            training process.
+        """
+        trainer = nltk.tag.BrillTaggerTrainer(self.initial_tagger,
+                                              self.templates,
+                                              self.trace,
+                                              self.deterministic,
+                                              self.ruleformat)
+
+        self.tagger = trainer.train(self.train, self.max_rules,
+                                    self.min_score, self.min_acc)
+
+    def print_rules(self):
+        """
+            Exhibit the rules obtained by the Brill Tagger in the
+            training process.
+        """
+        print(self.tagger.rules)
+
+    def print_templates(self):
+        """
+            Exhibit the templates currently being used by the Brill
+            Tagger after the training process.
+        """
+        self.tagger.print_template_statistics()
