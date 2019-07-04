@@ -22,7 +22,7 @@ class Corpora:
             :param universal bool: True if original tagset should be converted
                 to the universal tagset, False otherwise
         """
-        self.tagged_sents = []
+        self.tagged_sents = None
         self._validate_corpus_names(corpora)
         for corpus in corpora:
             self._read_corpus(corpus, universal)
@@ -56,9 +56,6 @@ class Corpora:
             :param cls:
             :param universal bool:
         """
-        corpus = cls(universal=universal)
-        if universal:
-            self.tagged_sents += corpus.mapped_tagged_sents
-        else:
-            self.tagged_sents += corpus.tagged_sents()
-        del corpus
+        corpus = cls(universal=universal).corpus
+        self.tagged_sents = self.tagged_sents + corpus.tagged_sents() \
+            if self.tagged_sents else corpus.tagged_sents()

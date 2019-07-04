@@ -14,10 +14,9 @@ class MacMorpho(Corpus):
         Class to manage the MacMorpho corpus.
     """
 
-    def __init__(self, universal=True):
-        super().__init__(corpus=nltk.corpus.mac_morpho)
-        if universal:
-            self._to_universal()
+    def __init__(self, folder='corpus', universal=True):
+        super().__init__(folder=folder, corpus=nltk.corpus.mac_morpho,
+                         universal=universal)
 
     @staticmethod
     def _universal_mapping():

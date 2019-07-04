@@ -13,7 +13,7 @@ class LacioWeb(Corpus):
         Class to manage the LacioWeb dataset.
     """
 
-    def __init__(self, name='full', universal=True):
+    def __init__(self, name=None, folder='corpus', universal=True):
         """
             LacioWeb class constructor.
 
@@ -21,19 +21,36 @@ class LacioWeb(Corpus):
             :param universal bool: True if the tagset must be mapped to the
                 universal tagset, False otherwise
         """
-        super().__init__(folder='lacioweb/')
-        self._url = 'http://nilc.icmc.usp.br/nilc/download/corpus{}.txt'
-        self._name = name
+        # Python constructors are different from those in Java: it is possible
+        # to call methods before the constructor since it is only a method that
+        # returns a proxy object for accessing parent attributes.
+        self.name = name
         self._validate_corpus_name()
-        self._get_corpus()
 
-        if universal:
-            self.mapping = self._universal_mapping()
-            self.mapped_tagged_sents = self.map_corpus_tags()
+        super().__init__(
+            folder=folder,
+            url='http://nilc.icmc.usp.br/nilc/download/corpus{}.txt',
+            universal=universal)
+
+    @property
+    def name(self):
+        """
+            Corpus name getter.
+        """
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        """
+            Corpus name setter. LacioWeb provide three corpora:
+            journalistic, literary, and didactic. The default
+            option will download all of them.
+        """
+        self._name = name if name else 'full'
 
     def _validate_corpus_name(self):
         """
-            Check if the given name is a valid corpus name.
+        Check if the given name is a valid corpus name.
             Available options are full, journalistic, literary,
             and didactic.
         """
@@ -43,44 +60,36 @@ class LacioWeb(Corpus):
                  'didactic':     'didactic'}
 
         try:
-            self._name = valid[self._name]
+            self.name = valid[self.name]
         except KeyError:
-            raise Exception('natlang.postagging.pt_lacioweb: invalid corpus '
-                            'name. Valid options are: full, journalistic, '
-                            'literary, and didactic.')
+            raise Exception(f'natlang.postagging.{self.__class__.__name__}: '
+                            f'invalid corpus name. Valid options are: full, '
+                            f'journalistic, literary, and didactic.')
 
-    def _get_corpus(self):
+    def _download_from_url(self, filename):
         """
-            Read the corpus. If the an OSError is raised, it means that there
-            is the need to download the corpus.
+            Format URL and call super method for download.
         """
-        filename = f'corpus{self._name}.txt'
-        try:
-            self._read_corpus(filename)
-        except OSError:
-            self._download_from_url()
-            self._read_corpus(filename)
+        self.url = self.url.format(self.name)
+        super()._download_from_url(
+            f'{self.__class__.__name__}_{self.name}.txt')
 
-    def _download_from_url(self):
-        """
-            Download the corpus in the given url. Create folder if it
-            does not exist.
-        """
-        self._url = self._url.format(self._name)
-        super()._download_from_url()
-
-    def _read_corpus(self, filename):
+    def _read_corpus(self):
         """
             Read the corpus using NLTK's TaggedCorpusReader.
 
             :param filename str: corpus filename
         """
         self.corpus = nltk.corpus.TaggedCorpusReader(
-            root=self._folder,
-            fileids=filename,
+            root=self.folder,
+            fileids=f'{self.__class__.__name__}_{self.name}.txt',
             sep='_',
             word_tokenizer=nltk.WhitespaceTokenizer(),
             encoding='latin-1')
+
+    def _to_universal(self, filename):
+        super()._to_universal(
+            f'{self.__class__.__name__}_{self.name}_Universal.txt')
 
     @staticmethod
     def _universal_mapping():
@@ -91,7 +100,7 @@ class LacioWeb(Corpus):
 
             NILC tagset:
             http://www.nilc.icmc.usp.br/nilc/download/tagsetcompleto.doc
-            
+
             :return: dictionary that maps the current tagset to the
                 universal tagset
         """

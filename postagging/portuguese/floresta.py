@@ -14,10 +14,9 @@ class Floresta(Corpus):
         Class to manage the Floresta corpus.
     """
 
-    def __init__(self, universal=True):
-        super().__init__(corpus=nltk.corpus.floresta)
-        if universal:
-            self._to_universal()
+    def __init__(self, folder='corpus', universal=True):
+        super().__init__(folder=folder, corpus=nltk.corpus.floresta,
+                         universal=universal)
 
     @staticmethod
     def _universal_mapping():

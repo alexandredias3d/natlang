@@ -17,7 +17,8 @@ class Corpus(abc.ABC):
     """
 
     @abc.abstractmethod
-    def __init__(self, corpus=None, default='X', folder='corpus'):
+    def __init__(self, corpus=None, default_tag=None, folder=None, url=None,
+                 universal=None):
         """
             Abstract Corpus class constructor.
 
@@ -26,52 +27,150 @@ class Corpus(abc.ABC):
             :param mapping dict: dictionary to map from one tagset to another
             :param folder str: corpus folder name
         """
-        self._default = default
-        self._folder = folder
-        self._url = ''
+        self.default_tag = default_tag
+        self.folder = folder
+        self.url = url
         self.corpus = corpus
         self.mapping = None
         self.mapped_tagged_sents = []
+
+        self._download_corpus()
+        self._read_corpus()
+
+        if universal:
+            self._to_universal(f'{self.__class__.__name__}_Universal.txt')
+
+    @property
+    def default_tag(self):
+        """
+            Default tag getter.
+        """
+        return self._default_tag
+
+    @default_tag.setter
+    def default_tag(self, default_tag):
+        """
+            Default tag setter. Set the default PoS tag to be used whenever an
+            unknown tag is found.
+        """
+        self._default_tag = default_tag if default_tag else 'X'
+
+    @property
+    def folder(self):
+        """
+            Folder getter.
+        """
+        return self._folder
+
+    @folder.setter
+    def folder(self, folder):
+        """
+            Folder setter. Set the folder where the corpus should be downloaded
+            to. This option is used only when the corpus is not available on
+            NLTK. Thus, there is the need to manually download it.
+        """
+        self._folder = folder if folder else 'corpus'
+
+    @property
+    def url(self):
+        """
+            URL getter.
+        """
+        return self._url
+
+    @url.setter
+    def url(self, url):
+        """
+            URL setter. Sets the URL where the resource is located at. Used for
+            manually downloading corpora.
+        """
+        self._url = url if url else ''
+
+    @property
+    def corpus(self):
+        """
+            Corpus getter.
+        """
+        return self._corpus
+
+    @corpus.setter
+    def corpus(self, corpus):
+        """
+            Corpus setter. Sets the internal class containing the sentences.
+        """
+        self._corpus = corpus
 
     def _download_corpus(self):
         """
             Download the corpus if it has not been downloaded yet.
         """
-        module = self.corpus.__module__.split('.')[0]
-        if 'nltk' in module:
+        try:
             self._download_from_nltk()
-        else:
-            self._download_from_url()
+        except AttributeError:
+            self._download_from_url(f'{self.__class__.__name__}.txt')
 
     def _download_from_nltk(self):
         """
             Check whether or not the current corpus is already on NLTK
             corpora folder. Download the corpus if it is not available.
         """
-        name = self.corpus.root.path.split('/')[-1]
+        name = self.corpus.__name__
         try:
             nltk.data.find(f'corpora/{name}')
+            print(f'natlang.postagging.{self.__class__.__name__}: found corpus'
+                  f' locally, there is no need to download it')
         except LookupError:
             nltk.download(name, quiet=True)
+            print(f'natlang.postagging.{self.__class__.__name__}: downloading '
+                  f'from NLTK')
 
-    def _download_from_url(self):
+    def _download_from_url(self, filename):
         """
             Try to create the folder to save the corpus. If the folder
             already exists, there is no need to download the corpus.
             Otherwise, call wget on the url.
         """
         try:
-            os.makedirs(self._folder)
-            wget.download(self._url, out=self._folder)
-        except FileExistsError:
-            pass
+            os.stat(f'{self.folder}/{filename}')
+            print(f'natlang.postagging.{self.__class__.__name__}: found corpus'
+                  f' locally, there is no need to download it')
+        except FileNotFoundError:
+            print(f'natlang.postagging.{self.__class__.__name__}: downloading '
+                  f'from URL')
+            os.makedirs(self.folder, exist_ok=True)
+            wget.download(self.url, out=f'{self.folder}/{filename}')
 
-    def _to_universal(self):
+    def _read_corpus(self):
+        """
+            Read the corpus if it has not yet been read.
+        """
+        pass
+
+    def _to_universal(self, filename):
         """
             Convert the tags in the corpus to the universal tagset.
         """
+
         self.mapping = self._universal_mapping()
-        self.mapped_tagged_sents = self.map_corpus_tags()
+        try:
+            # Circumventing NLTK's lack exception when file does not exist
+            os.stat(f'{self.folder}/{filename}')
+            print(f'natlang.postagging.{self.__class__.__name__}: reading '
+                  f'corpus previously mapped to universal tagset')
+            self.corpus = nltk.corpus.TaggedCorpusReader(
+                root=self.folder,
+                fileids=filename,
+                sep='_',
+                word_tokenizer=nltk.WhitespaceTokenizer(),
+                encoding='utf-8')
+            self.tagged_sents = self.corpus.tagged_sents
+        except FileNotFoundError:
+            print(f'natlang.postagging.{self.__class__.__name__}: mapping '
+                  f'the corpus since the mapped version is not available '
+                  f'in folder {self.folder}')
+            self.mapped_tagged_sents = self.map_corpus_tags()
+            self.tagged_sents = self.mapped_tagged_sents
+            self.write(filename)
 
     @staticmethod
     @abc.abstractmethod
@@ -81,6 +180,18 @@ class Corpus(abc.ABC):
             and the universal tagset that should be provided by the
             user of a corpus.
         """
+
+    def write(self, filename):
+        """
+            Write the corpus to a txt file. Useful for saving the same
+            corpus using different mappings and avoid mapping upon each
+            instantiation.
+        """
+        with open(f'{self.folder}/{filename}', 'w', encoding='utf-8') as file:
+            for sent in self.tagged_sents:
+                for word, tag in sent:
+                    file.write(f'{word}_{tag} ')
+                file.write('\n')
 
     def map_word_tag(self, word_tag):
         """
@@ -96,7 +207,7 @@ class Corpus(abc.ABC):
         try:
             return word, self.mapping[tag]
         except KeyError:
-            return word, self._default
+            return word, self.default_tag
 
     def map_sentence_tags(self, sentence):
         """
@@ -112,7 +223,8 @@ class Corpus(abc.ABC):
     def map_corpus_tags(self):
         """
             Map the entire corpus to the tagset present in the
-            mapping dictionary.
+            mapping dictionary. Uses a LazyMap from nltk.collections
+            to avoid storing the entire corpus in memory.
 
             :return: entire corpus mapped to the tagset present in
                 mapping
