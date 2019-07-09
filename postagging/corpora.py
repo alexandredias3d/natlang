@@ -1,12 +1,4 @@
-"""
-    Module that provides a class for easily management of several
-    corpus. Given a list of strings, the module can load corpora
-    and convert its PoS tagsets to the universal tagset.
-"""
-from portuguese.floresta import Floresta
-from portuguese.lacioweb import LacioWeb
-from portuguese.macmorpho import MacMorpho
-
+from portuguese import Floresta, LacioWeb, MacMorpho
 
 class Corpora:
     """

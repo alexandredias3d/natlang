@@ -1,11 +1,172 @@
 """
-    Module that handles the LacioWeb corpus from NILC. It can download
-    and read the corpus using the NLTK TaggedCorpusReader. Also, it can
-    convert the original PoS tags to the universal tagset.
+    Module that provides several classes to handle portuguese corpora.
 """
 import nltk
 
 from corpus import Corpus
+
+
+class MacMorpho(Corpus):
+    """
+        Class to manage the MacMorpho corpus.
+    """
+
+    def __init__(self, folder='corpus', universal=True):
+        super().__init__(folder=folder, corpus=nltk.corpus.mac_morpho,
+                         universal=universal)
+
+    @staticmethod
+    def _universal_mapping():
+        """
+            Provide a mapping from Mac-Morpho tagset to the Universal
+            Tagset. The Mac-Morpho tagset was obtained using a set to
+            store only unique occurrences of tags directly from the
+            corpus.
+
+            Mac-Morpho manual:
+            http://nilc.icmc.usp.br/macmorpho/macmorpho-manual.pdf
+
+            :return: dictionary that maps the current tagset to the
+                universal tagset
+        """
+        mapping = {
+
+            # Punctuation: .
+            # According to Wikipedia, $ is a punctuation mark.
+            **{k: '.' for k in ['!', '"', '$', "'", '(', ')', ',', '-',
+                                '.', '/', ':', ';', '?', '[', ']']},
+
+            # Adjectives: ADJ
+            **{k: 'ADJ' for k in ['ADJ', 'ADJ|EST']},
+
+            # Numbers: NUM
+            **{k: 'NUM' for k in ['NUM', 'NUM|TEL']},
+
+            # Adverbs: ADV
+            **{k: 'ADV' for k in ['ADV', 'ADV-KS', 'ADV-KS-REL', 'ADV|+',
+                                  'ADV|EST', 'ADV|[', 'ADV|]']},
+            # Conjunctions: CONJ
+            **{k: 'CONJ' for k in ['KC', 'KC|[', 'KC|]', 'KS']},
+
+            # Determiners: DET
+            **{k: 'DET' for k in ['ART', 'ART|+']},
+
+            # Nouns: NOUN
+            # NPRO is a typo: two occurrences for "Folha" and
+            #                     one for "Congresso".
+            **{k: 'NOUN' for k in ['N', 'NPRO', 'NPROP', 'NPROP|+', 'N|AP',
+                                   'N|DAT', 'N|EST', 'N|HOR', 'N|TEL']},
+
+            # Pronouns: PRON
+            **{k: 'PRON' for k in ['PRO-KS', 'PRO-KS-REL', 'PROADJ', 'PROPESS',
+                                   'PROSUB']},
+
+            # Particles: PRT
+            **{k: 'PRT' for k in ['PDEN']},
+
+            # Adpositions: ADP
+            # PREP| is a typo of PREP: two occurrences for "de".
+            **{k: 'ADP' for k in ['PREP', 'PREP|', 'PREP|+', 'PREP|[',
+                                  'PREP|]']},
+
+            # Verbs: VERB
+            # Should participle verbs go here or in adjectives?
+            **{k: 'VERB' for k in ['V', 'V|+', 'VAUX', 'VAUX|+', 'PCP']},
+
+            # Miscellaneous: X
+            **{k: 'X' for k in ['CUR', 'IN']}}
+
+        return mapping
+
+class Floresta(Corpus):
+    """
+        Class to manage the Floresta corpus.
+    """
+
+    def __init__(self, folder='corpus', universal=True):
+        super().__init__(folder=folder, corpus=nltk.corpus.floresta,
+                         universal=universal)
+
+    @staticmethod
+    def _universal_mapping():
+        """
+            Provide a mapping from Floresta tagset to the Universal
+            Tagset. The Floresta tagset was obtained using a set to
+            store only unique occurrences of tags directly from the
+            corpus.
+
+            Floresta manual:
+            https://www.linguateca.pt/Floresta/
+            http://visl.sdu.dk/visl/pt/symbolset-floresta.html
+
+            :return: dictionary that maps the current tagset to the
+                universal tagset
+        """
+        mapping = {
+
+            # Punctuation: .
+            **{k: '.' for k in ['!', '"', "'", '*', ',', '-', '.', '/',
+                                ';', '?', '[', ']', '{', '}', '»', '«']},
+
+            # Adjectives: ADJ
+            **{k: 'ADJ' for k in ['adj']},
+
+            # Numbers: NUM
+            **{k: 'NUM' for k in ['num']},
+
+            # Adverbs: ADV
+            **{k: 'ADV' for k in ['adv']},
+
+            # Conjunctions: CONJ
+            **{k: 'CONJ' for k in ['conj-c', 'conj-s']},
+
+            # Determiners: DET
+            **{k: 'DET' for k in ['art']},
+
+            # Nouns: NOUN
+            # prop: proper noun.
+            **{k: 'NOUN' for k in ['n', 'prop']},
+
+            # Pronouns: PRON
+            **{k: 'PRON' for k in ['pron-det', 'pron-indp', 'pron-pers']},
+
+            # Particles: PRT
+            # Not present in the tagset.
+            **{k: 'PRT' for k in ['']},
+
+            # Adpositions: ADP
+            # Three occurrences of "em" with tags H+prp-.
+            # Should pp (prepositional phrase) be classified as an adposition?
+            # Original paper of Universal Tagset classified pp as noun...
+            **{k: 'ADP' for k in ['prp', 'prp-', 'pp']},
+
+            # Verbs: VERB
+            # Should participle verbs go here or in adjectives?
+            # "existente" has tag P+vp: predicator + verb phrase (should it be
+            # tagged as a verb?)
+            **{k: 'VERB' for k in ['v-fin', 'v-ger', 'v-inf', 'v-pcp', 'vp']},
+
+            # Miscellaneous: X
+            # N<{'185/60_R_14'} is the tag for the word 185/60_R_14.
+            # ec: anti-, ex-, pós, ex, pré (how should they be classified?)
+            **{k: 'X' for k in ['ec', 'in', "N<{'185/60_R_14'}"]}}
+
+        return mapping
+
+    def map_word_tag(self, word_tag):
+        return super().map_word_tag((word_tag[0],
+                                     self._get_pos_tag(word_tag[1])))
+
+    @staticmethod
+    def _get_pos_tag(tag):
+        """
+            Drop syntatic information to keep only the POS tag.
+
+            :param tag str: Floresta tag that contains syntatic
+                information followed by the PoS tag
+            :return: PoS tag
+        """
+        return tag.split('+')[-1]
 
 
 class LacioWeb(Corpus):

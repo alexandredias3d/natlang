@@ -1,6 +1,7 @@
 """
-    Utility module that provide an abstract class to handle
-    a corpus.
+    Utility module that provides easier ways to deal with single corpus and
+    corpora from NLTK. It is possible to subclass the abstract Corpus class
+    to download unavailable corpus in NLTK, similar to the LacioWeb class.
 """
 import abc
 import os
