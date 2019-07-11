@@ -10,6 +10,7 @@ import pickle
 import nltk
 import numpy as np
 import seaborn as sns
+import matplotlib.pyplot as plt
 
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report
@@ -34,11 +35,12 @@ class Tagger(abc.ABC):
             :param lang str: default language to load the tokenizer
         """
         self.tagger = tagger
-        self._sent_tokenizer = None
         self._sent_tokenize = None
         self._word_tokenize = nltk.word_tokenize
 
         self._load_sent_tokenizer(lang)
+
+        print(self._sent_tokenize, self._word_tokenize)
 
     @property
     def tagger(self):
@@ -64,9 +66,8 @@ class Tagger(abc.ABC):
         """
         try:
             nltk.download('punkt', quiet=True)
-            self._sent_tokenizer = nltk.data.load(f'tokenizers/punkt/'
-                                                  f'{lang}.pickle')
-            self._sent_tokenize = self._sent_tokenizer.tokenize
+            self._sent_tokenize = nltk.data.load(f'tokenizers/punkt/'
+                                                 f'{lang}.pickle').tokenize
         except LookupError:
             raise ValueError('natlang.postagging: could not find a sentence '
                              'tokenizer for the given language')
@@ -87,7 +88,7 @@ class Tagger(abc.ABC):
 
     def evaluate(self, test, accuracy=True, conf_matrix=True,
                  plot=False, report=True, normalize=True,
-                 target_names=None, output_dict=False):
+                 target_names=None, output_dict=True, decimals=2):
         """
             Evaluate the tagger on the given test set. The test set
             must be a list of tagged sentences.
@@ -104,19 +105,57 @@ class Tagger(abc.ABC):
             target_names = UNIVERSAL_TAGSET
 
         if accuracy:
-            accuracy = self._accuracy(y_true, y_pred, normalize)
+            accuracy = self._accuracy(y_true, y_pred, normalize, decimals)
         if conf_matrix:
             conf_matrix = self._confusion_matrix(y_true, y_pred, normalize,
-                                                 plot, labels=target_names)
+                                                 plot, labels=target_names,
+                                                 decimals=decimals)
         if report:
             report = self._classification_report(y_true, y_pred,
                                                  target_names,
                                                  output_dict)
+        if plot:
+            fmt = f'.{decimals}f' if normalize else 'd'
+            grid = (3, 6)
+
+            ax1 = plt.subplot2grid(grid, (0, 0), colspan=4, rowspan=3)
+            ax2 = plt.subplot2grid(grid, (0, 4), colspan=2, rowspan=3)
+
+            sns.set()
+            sns.heatmap(conf_matrix, cmap='Greens', annot=True, robust=True,
+                        fmt=fmt, xticklabels=target_names,
+                        yticklabels=target_names, ax=ax1)
+            ax1.set_ylabel('True label')
+            ax1.set_xlabel('Predicted label')
+            ax1.set_title('Confusion Matrix '
+                          + ('Normalized' if normalize else ''))
+
+            unused = ['accuracy', 'macro avg', 'weighted avg']
+
+            cell_values = []
+            for key, subreport in report.items():
+                if key not in unused:
+                    cell_values.append([f'{value:.{decimals}f}'
+                                        for value in subreport.values()])
+
+            metrics = ['precision', 'recall', 'f1-score', 'support']
+            table = ax2.table(cellText=cell_values,
+                              rowLabels=target_names,
+                              colLabels=metrics,
+                              loc='center')
+            table.auto_set_font_size(False)
+            table.set_fontsize(13)
+            ax2.axis('off')
+
+            manager = plt.get_current_fig_manager()
+            manager.resize(*manager.window.maxsize())
+
+            plt.show()
 
         return accuracy, conf_matrix, report
 
     @staticmethod
-    def _accuracy(y_true, y_pred, normalize=True):
+    def _accuracy(y_true, y_pred, normalize=True, decimals=2):
         """
             Compute the tagger accuracy using sklearn. Flatten
             lists to calculate the accuracy. It is also possible
@@ -126,11 +165,11 @@ class Tagger(abc.ABC):
             :param y_true: ground truth tags
             :param y_pred: predicted tags by the tagger
         """
-        return accuracy_score(y_true, y_pred, normalize)
+        return round(accuracy_score(y_true, y_pred, normalize), decimals)
 
     @staticmethod
     def _confusion_matrix(y_true, y_pred, normalize=True, plot=False,
-                          labels=None):
+                          labels=None, decimals=2):
         """
             Use sklearn to compute the confusion matrix. Plot the
             figure if plot is True.
@@ -140,15 +179,10 @@ class Tagger(abc.ABC):
             :return: confusion matrix
         """
         cm = confusion_matrix(y_true, y_pred)
-        fmt = 'd'
         if normalize:
             cm = cm.astype('float')/cm.sum(axis=1)[:, np.newaxis]
-            fmt = 'f'
+            cm = np.around(cm, decimals=decimals)
 
-        if plot:
-            sns.set()
-            sns.heatmap(cm, annot=True, fmt=fmt, xticklabels=labels,
-                        yticklabels=labels)
         return cm
 
     @staticmethod
@@ -179,15 +213,14 @@ class Tagger(abc.ABC):
 
             :param filepath str: output filepath for saving the tagger
         """
-        tagger = Tagger(self.tagger)
         try:
             with open(f'{filepath}', 'wb') as file:
-                pickle.dump(tagger, file)
+                pickle.dump(self, file)
         except OSError:
             raise Exception('natlang.postagging.tagger: invalid filepath')
 
-    @staticmethod
-    def load(filepath):
+    @classmethod
+    def load(cls, filepath):
         """
             Load a tagger from the given filepath.
 
@@ -198,8 +231,9 @@ class Tagger(abc.ABC):
             with open(f'{filepath}', 'rb') as file:
                 tagger = pickle.load(file)
         except OSError:
-            raise Exception('natlang.postagging.tagger: invalid filepath')
-        return Tagger(tagger)
+            raise Exception(f'natlang.postagging.__class__.__name__: invalid '
+                            f'filepath')
+        return tagger
 
     def tag(self, arg):
         """
