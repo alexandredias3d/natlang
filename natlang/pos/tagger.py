@@ -295,7 +295,7 @@ class Tagger:
 
         return x_feat, y_true
 
-    def evaluate(self, test, test_size=0.3, target_names=None):
+    def evaluate(self, test, test_size=0.3, target_names=None, filename=None):
         """
             Evaluates the tagger on the given test set. The test set
             must be a list of tagged sentences.
@@ -320,24 +320,24 @@ class Tagger:
                                                     target_names,
                                                     output_dict=True)
 
-        self._plot(conf_matrix, report, target_names)
+        self._plot(conf_matrix, report, target_names, filename)
 
         return accuracy, conf_matrix, report
 
-    def _plot(self, conf_matrix, report, target_names):
+    def _plot(self, conf_matrix, report, target_names, filename):
         grid = (3, 6)
 
-        #ax1 = plt.subplot2grid(grid, (0, 0), colspan=4, rowspan=3)
-        #ax2 = plt.subplot2grid(grid, (0, 4), colspan=2, rowspan=3)
-        #ax1 = plt.subplot(4, 4, 1)
-        #ax2 = plt.subplot(4, 4, 2)
-        #plt.tight_layout()
+        fig = plt.figure()
 
-        fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(15, 15))
-        fig.tight_layout()
+        ax1 = plt.subplot2grid(grid, (0, 0), colspan=4, rowspan=3, fig=fig)
+        ax2 = plt.subplot2grid(grid, (0, 4), colspan=2, rowspan=3, fig=fig)
 
-        self._plot_confusion_matrix(axes[0], conf_matrix, target_names)
-        self._plot_classification_report(axes[1], report, target_names)
+        self._plot_confusion_matrix(ax1, conf_matrix, target_names)
+        self._plot_classification_report(ax2, report, target_names)
+
+        fig.set_size_inches(1920/fig.dpi, 1080/fig.dpi)
+        fig.savefig(filename, format='pdf', bbox_inches='tight')
+
 
     @staticmethod
     def _plot_confusion_matrix(ax, conf_matrix, target_names, normalize=True,
@@ -351,7 +351,7 @@ class Tagger:
 
         ax.set_ylabel('True label')
         ax.set_xlabel('Predicted label')
-        ax.set_title('Confusion Matrix' + ('Normalized' if normalize else ''))
+        ax.set_title('Confusion Matrix' + (' Normalized' if normalize else ''))
 
     @staticmethod
     def _plot_classification_report(ax, report, target_names, decimals=2):
