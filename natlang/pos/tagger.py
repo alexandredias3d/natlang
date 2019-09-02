@@ -2,7 +2,7 @@
     Handles the creation of several types of PoS taggers from NLTK such
     as sequential backoff, Brill and Perceptron taggers.
 """
-import pickle
+import json
 import nltk
 import numpy as np
 import seaborn as sns
@@ -87,7 +87,7 @@ class TaggerBuilder:
 
             :return: tagged sentences for training
         """
-        if isinstance(self.__train, list):
+        if isinstance(self.__train, (list, nltk.LazySubsequence)):
             return chain(self.__train)
         else:
             return self.__train.get_train(self._train_size)
@@ -316,6 +316,8 @@ class Tagger:
         conf_matrix = self.compute_confusion_matrix(y_true, y_pred,
                                                     labels=target_names)
 
+        conf_matrix = np.nan_to_num(conf_matrix)
+
         report = self.compute_classification_report(y_true, y_pred,
                                                     target_names,
                                                     output_dict=True)
@@ -325,32 +327,39 @@ class Tagger:
         return accuracy, conf_matrix, report
 
     def _plot(self, conf_matrix, report, target_names, filename):
-        grid = (3, 6)
+        grid = (1, 3)
 
         fig = plt.figure()
 
-        ax1 = plt.subplot2grid(grid, (0, 0), colspan=4, rowspan=3, fig=fig)
-        ax2 = plt.subplot2grid(grid, (0, 4), colspan=2, rowspan=3, fig=fig)
+        ax1 = plt.subplot2grid(grid, (0, 0), colspan=2, rowspan=1, fig=fig)
+        ax2 = plt.subplot2grid(grid, (0, 2), colspan=1, rowspan=1, fig=fig)
 
+        sns.set()
         self._plot_confusion_matrix(ax1, conf_matrix, target_names)
         self._plot_classification_report(ax2, report, target_names)
 
+        dpi = 1200
         fig.set_size_inches(1920/fig.dpi, 1080/fig.dpi)
-        fig.savefig(filename, format='pdf', bbox_inches='tight')
+        fig.savefig(filename, format='pdf', bbox_inches='tight', dpi=dpi)
 
 
     @staticmethod
     def _plot_confusion_matrix(ax, conf_matrix, target_names, normalize=True,
                                decimals=2):
         fmt = f'.{decimals}f' if normalize else 'd'
+        vmin = 0.0
+        vmax = 1.0 if normalize else conf_matrix.max()
+        cmap = 'Greens'
 
-        sns.set()
-        sns.heatmap(conf_matrix, cmap='Greens', annot=True, robust=True,
-                    fmt=fmt, xticklabels=target_names, square=True,
-                    yticklabels=target_names, ax=ax)
+        sns.heatmap(conf_matrix, vmin, vmax, cmap, annot=True, fmt=fmt,
+                    square=True, yticklabels=target_names, ax=ax)
+
+        xlim = ax.get_xlim()
+        ax.set_ylim(xlim[1], xlim[0])
 
         ax.set_ylabel('True label')
         ax.set_xlabel('Predicted label')
+        ax.set_xticklabels(target_names, rotation=45)
         ax.set_title('Confusion Matrix' + (' Normalized' if normalize else ''))
 
     @staticmethod
@@ -427,8 +436,9 @@ class Tagger:
             :param filepath str: the output tagger filepath
         """
         try:
-            with open(f'{filepath}', 'wb') as file:
-                pickle.dump(self, file)
+            with open(f'{filepath}', 'w') as file:
+                json.dump(self.tagger, file, indent=1,
+                          cls=nltk.JSONTaggedEncoder)
         except OSError:
             raise Exception(f'{self._prefix}: invalid filepath')
 
@@ -441,12 +451,12 @@ class Tagger:
             :return: instance of Tagger with the loaded tagger
         """
         try:
-            with open(f'{filepath}', 'rb') as file:
-                tagger = pickle.load(file)
+            with open(f'{filepath}', 'r') as file:
+                tagger = json.load(file, cls=nltk.JSONTaggedDecoder)
         except OSError:
             raise Exception(
                 f'natlang.postagging.{cls.__name__}: invalid filepath')
-        return tagger
+        return cls(tagger)
 
     def tag(self, arg):
         """

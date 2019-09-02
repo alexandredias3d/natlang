@@ -191,7 +191,8 @@ class Corpus(abc.ABC):
         with open(f'{self.folder}/{filename}', 'w', encoding='utf-8') as file:
             for sent in self.tagged_sents:
                 for word, tag in sent:
-                    file.write(f'{word}_{tag} ')
+                    if word and tag:
+                        file.write(f'{word}_{tag} ')
                 file.write('\n')
 
     def map_word_tag(self, word_tag):
