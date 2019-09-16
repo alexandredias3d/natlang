@@ -1,5 +1,10 @@
 data
+dist
 model
+*.egg-info
 
+*.pyc
 __pycache__
+
+
 .ipynb_checkpoints
