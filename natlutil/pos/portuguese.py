@@ -3,7 +3,7 @@
 """
 import nltk
 
-from natlang.pos.corpus import Corpus
+from natlutil.pos.corpus import Corpus
 
 
 class MacMorpho(Corpus):
@@ -226,7 +226,7 @@ class LacioWeb(Corpus):
         try:
             self.name = valid[self.name]
         except KeyError:
-            raise Exception(f'natlang.postagging.{self.__class__.__name__}: '
+            raise Exception(f'natlutil.postagging.{self.__class__.__name__}: '
                             f'invalid corpus name. Valid options are: full, '
                             f'journalistic, literary, and didactic.')
 

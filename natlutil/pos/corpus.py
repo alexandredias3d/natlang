@@ -105,7 +105,7 @@ class Corpus(abc.ABC):
         try:
             self._download_from_nltk()
         except (AttributeError, ValueError):
-            print(f'natlang.postagging.{self.__class__.__name__}: did not '
+            print(f'natlutil.postagging.{self.__class__.__name__}: did not '
                   f'find the given corpus on NLTK')
             self._download_from_url(f'{self.__class__.__name__}.txt')
 
@@ -117,10 +117,10 @@ class Corpus(abc.ABC):
         try:
             name = self.corpus.root.path.split('/')[-1]
             nltk.data.find(f'corpora/{name}')
-            print(f'natlang.postagging.{self.__class__.__name__}: found corpus'
+            print(f'natlutil.postagging.{self.__class__.__name__}: found corpus'
                   f' locally, there is no need to download it')
         except LookupError:
-            print(f'natlang.postagging.{self.__class__.__name__}: downloading '
+            print(f'natlutil.postagging.{self.__class__.__name__}: downloading '
                   f'from NLTK')
             name = self.corpus.__name__
             nltk.download(name, quiet=True, raise_on_error=True)
@@ -134,10 +134,10 @@ class Corpus(abc.ABC):
         """
         try:
             os.stat(f'{self.folder}/{filename}')
-            print(f'natlang.postagging.{self.__class__.__name__}: found corpus'
+            print(f'natlutil.postagging.{self.__class__.__name__}: found corpus'
                   f' locally, there is no need to download it')
         except FileNotFoundError:
-            print(f'natlang.postagging.{self.__class__.__name__}: downloading '
+            print(f'natlutil.postagging.{self.__class__.__name__}: downloading '
                   f'from URL')
             wget.download(self.url, out=f'{self.folder}/{filename}')
 
@@ -156,7 +156,7 @@ class Corpus(abc.ABC):
         try:
             # Circumventing NLTK's lack exception when file does not exist
             os.stat(f'{self.folder}/{filename}')
-            print(f'natlang.postagging.{self.__class__.__name__}: reading '
+            print(f'natlutil.postagging.{self.__class__.__name__}: reading '
                   f'corpus previously mapped to universal tagset')
             self.corpus = nltk.corpus.TaggedCorpusReader(
                 root=self.folder,
@@ -166,7 +166,7 @@ class Corpus(abc.ABC):
                 encoding='utf-8')
             self.tagged_sents = self.corpus.tagged_sents
         except FileNotFoundError:
-            print(f'natlang.postagging.{self.__class__.__name__}: mapping '
+            print(f'natlutil.postagging.{self.__class__.__name__}: mapping '
                   f'the corpus since the mapped version is not available '
                   f'in folder {self.folder}')
             self.mapped_tagged_sents = self.map_corpus_tags()

@@ -4,7 +4,7 @@ with open('README.md', 'r') as readme:
     long_description = readme.read()
 
 setuptools.setup(
-    name='natlang',
+    name='natlutil',
     version='0.1.0',
     author='Alexandre H. T. Dias',
     author_email='alehenriquedias@gmail.com',

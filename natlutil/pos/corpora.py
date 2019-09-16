@@ -1,5 +1,5 @@
 from itertools import chain, islice
-from natlang.pos.portuguese import Floresta, LacioWeb, MacMorpho
+from natlutil.pos.portuguese import Floresta, LacioWeb, MacMorpho
 
 
 class Corpora:
@@ -46,7 +46,7 @@ class Corpora:
     def _validate_corpus_names(corpora):
         """
             Maps a string name into the available corpus
-            class in natlang.
+            class in natlutil.
 
             :param corpora list:
         """
@@ -61,7 +61,7 @@ class Corpora:
             for idx, name in enumerate(corpora):
                 corpora[idx] = mapping[_clean(name)]
         except KeyError:
-            raise Exception('natlang.postagging.corpus: invalid corpus name')
+            raise Exception('natlutil.postagging.corpus: invalid corpus name')
 
     def _read_corpus(self, cls, folder=None, universal=True):
         """
@@ -81,7 +81,7 @@ class Corpora:
 
             :param train_size double: amount of sentences (in percentage)
                 in the training set
-            :return: iterable over the sentences 
+            :return: iterable over the sentences
         """
         return islice(self.sentences, 0, int(len(self) * train_size))
 

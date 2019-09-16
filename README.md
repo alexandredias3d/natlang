@@ -1,3 +1,3 @@
-# NatLang
+# Natlutil
 
-NatLang is a compilation of source codes used to provide common functionality regarding the processing of natural languages.
+Natlutil is a compilation of source codes used to provide common functionality regarding the processing of natural languages.

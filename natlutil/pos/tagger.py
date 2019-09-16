@@ -13,8 +13,8 @@ from sklearn.metrics import accuracy_score
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
 
-from natlang.util import flatten
-from natlang.util import UNIVERSAL_TAGSET
+from natlutil.util import flatten
+from natlutil.util import UNIVERSAL_TAGSET
 
 
 class TaggerBuilder:
@@ -28,7 +28,7 @@ class TaggerBuilder:
     """
 
     def __init__(self, train, train_size=0.7, safe=True):
-        self._prefix = f'natlang.postagging.{self.__class__.__name__}'
+        self._prefix = f'natlutil.postagging.{self.__class__.__name__}'
         self._safe = safe
         self._train_size = train_size
         self.__tagger = None
@@ -241,7 +241,7 @@ class Tagger:
         self.tagger = tagger
         self._sent_tokenize = None
         self._word_tokenize = nltk.word_tokenize
-        self._prefix = f'natlang.postagging.{self.__class__.__name__}'
+        self._prefix = f'natlutil.postagging.{self.__class__.__name__}'
 
         self._load_sent_tokenizer(lang)
 
@@ -455,7 +455,7 @@ class Tagger:
                 tagger = json.load(file, cls=nltk.JSONTaggedDecoder)
         except OSError:
             raise Exception(
-                f'natlang.postagging.{cls.__name__}: invalid filepath')
+                f'natlutil.postagging.{cls.__name__}: invalid filepath')
         return cls(tagger)
 
     def tag(self, arg):
