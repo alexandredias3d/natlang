@@ -1,6 +1,5 @@
 data
 dist
-model
 *.egg-info
 
 *.pyc
